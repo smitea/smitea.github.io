@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Why Safe v1.3.0 stores nothing on chain, and the three things that actually break when you sign a multisig transaction by hand">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Talk to a Multisig Wallet">
+<meta property="og:url" content="http://shawhuang.com/2023/11/12/multisig/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Why Safe v1.3.0 stores nothing on chain, and the three things that actually break when you sign a multisig transaction by hand">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2023-11-12T01:20:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:35:14.444Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Talk to a Multisig Wallet</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2024/03/30/Qujing/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2023/08/10/Chongqing-China/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-transaction-is-a-signed-value-not-a-stored-record"><span class="toc-number">2.1.</span> <span class="toc-text">The transaction is a signed value, not a stored record</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Replay-protection-is-built-into-the-hash"><span class="toc-number">2.2.</span> <span class="toc-text">Replay protection is built into the hash</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Owners-live-on-chain-confirmations-live-off-chain"><span class="toc-number">2.3.</span> <span class="toc-text">Owners live on chain, confirmations live off chain</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Guards-run-before-and-after"><span class="toc-number">2.4.</span> <span class="toc-text">Guards run before and after</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Modules-skip-the-threshold-on-purpose"><span class="toc-number">2.5.</span> <span class="toc-text">Modules skip the threshold, on purpose</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-the-client-has-to-get-right"><span class="toc-number">4.</span> <span class="toc-text">What the client has to get right</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Talk to a Multisig Wallet
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2023-11-12T01:20:00.000Z" itemprop="datePublished">2023-11-12</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>A single private key is a single point of failure. One leaked seed phrase — the word list that backs up a wallet — one malicious dApp (a website that asks your wallet to approve something), one compromised signer, and the treasury is gone. A multisig splits authority across <em>n</em> keys and requires <em>m</em> of them to act, so no single compromise can move funds on its own.</p>
+<p><strong>What this post is about.</strong> Safe, the protocol behind the Gnosis Safe contracts, is the reference version of that idea. This post is about the client side: what a program that talks to a multisig wallet must get exactly right. You will learn how the protocol expects a transaction to be hashed, signed, sorted and submitted, and where a hand-written client most often breaks.</p>
+<p><strong>What you need to know first.</strong> A <em>contract</em> is code stored at an address on the blockchain. A <em>transaction</em> is a signed instruction that calls a contract, and it costs <em>gas</em> — the fee the network charges for computation and storage. A <em>multisig</em> is one contract that holds the funds and only acts when enough owners have approved the same instruction. A <em>signature</em> is that proof of approval: the owner’s private key produces one, and the contract recovers the signer’s address from it.</p>
+<p>That idea is simple. Making a client that talks to one correctly is not — and that is what this repository is about. It contains no Solidity (the language Ethereum contracts are written in) at all: it is a ~570-line Node.js client for the canonical Gnosis Safe v1.3.0 contracts, plus compiled ABI artifacts — the machine-readable list of each contract’s functions and argument types — written to drive a Safe on a private testnet.</p>
+<p>So the interesting question is not “how do I write a multisig”. It is: <strong>what does the protocol actually expect from a client, and what happens when you get it subtly wrong?</strong></p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The first generation of multisig wallets was <em>stateful</em>: it kept a record of pending work on chain. Gnosis MultiSig v0.1.0 (2017) works like this:</p>
+<ul>
+<li>An owner calls <code>submitTransaction(dest, value, data)</code>. The contract stores a <code>Transaction</code> struct — a record grouping a few fields — in an array and increments a counter.</li>
+<li>Other owners call <code>confirmTransaction(txId)</code>, which flips a bit in an <code>isConfirmed[txId][owner]</code> mapping — a Solidity table of key to value.</li>
+<li>Once <code>required</code> confirmations accumulate, anybody calls <code>executeTransaction(txId)</code>, which sets <code>isExecuted[txId] = true</code>.</li>
+</ul>
+<p>Every one of those steps is a transaction, and the contract carries a <code>bytes32 txHash =&gt; Transaction</code> map that grows without bound. The pending queue is the attack surface: stale proposals, <em>griefing</em> (making someone else’s life expensive at little cost to your own), storage costs, and a flag that has to be checked so a transaction cannot run twice.</p>
+<p>Safe v1.3.0 replaces all of it with a different answer: <strong>there is no pending-transaction storage at all.</strong></p>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><h3 id="The-transaction-is-a-signed-value-not-a-stored-record"><a href="#The-transaction-is-a-signed-value-not-a-stored-record" class="headerlink" title="The transaction is a signed value, not a stored record"></a>The transaction is a signed value, not a stored record</h3><p>In v1.3.0 the transaction is <code>(to, value, data, operation, safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, nonce)</code>. The owners sign its EIP-712 hash <em>off chain</em> — EIP-712 is the standard for signing structured data, so a wallet can show the signer what they are approving. The signatures travel with the call. One transaction does propose, approve and execute atomically, meaning in one indivisible step.</p>
+<p>The consequences are large: a Safe costs the same whether it has executed one transaction or a million. Nothing is ever “pending”, so nothing can be griefed by leaving it pending, and there is no state to expire.</p>
+<p>The signed payload is the whole contract between the signers and the chain:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">bytes32 safeTxHash = keccak256(abi.encode(</span><br><span class="line">        SAFE_TX_TYPEHASH, to, value, keccak256(data), operation,</span><br><span class="line">        safeTxGas, baseGas, gasPrice, gasToken, refundReceiver, _nonce));</span><br><span class="line">return abi.encodePacked(bytes1(0x19), bytes1(0x01), domainSeparator(), safeTxHash);</span><br></pre></td></tr></table></figure>
+
+<p><em>(upstream <code>safe-global/safe-smart-account</code> v1.3.0, <code>contracts/GnosisSafe.sol:365</code>)</em></p>
+<p><code>keccak256</code> is the hash function Ethereum uses everywhere. <code>abi.encode</code> is Solidity’s way of packing a list of values into one byte string, and <code>SAFE_TX_TYPEHASH</code> is a fixed constant that names the kind of message being signed. Every field of the transaction goes into the hash — recipient, value, the call data itself (hashed again), the operation type, the gas and refund terms, and the nonce — so a signature covers the whole deal, not a summary of it.</p>
+<p>The domain separator binds the signature to <em>this</em> Safe on <em>this</em> chain:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">function domainSeparator() public view returns (bytes32) &#123;</span><br><span class="line">    return keccak256(abi.encode(DOMAIN_SEPARATOR_TYPEHASH, chainId, this));</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>chainId</code> is the network’s number and <code>this</code> is the Safe’s own address. The <code>bytes1(0x19), bytes1(0x01)</code> prefix is a fixed marker from EIP-191 that says “this signature is meant for a contract to verify”. Without the separator, a signature gathered on one chain would be valid on another; the chain id is what rules that out.</p>
+<h3 id="Replay-protection-is-built-into-the-hash"><a href="#Replay-protection-is-built-into-the-hash" class="headerlink" title="Replay protection is built into the hash"></a>Replay protection is built into the hash</h3><p>The old design needed <code>isExecuted[txId]</code> to stop a transaction running twice. The new one needs nothing: the signed hash embeds the <em>nonce</em> — a counter of how many transactions this Safe has executed — and <code>execTransaction</code> increments the nonce <em>before</em> executing:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">// Increase nonce and execute transaction.</span><br><span class="line">nonce++;</span><br><span class="line">txHash = keccak256(txHashData);</span><br><span class="line">checkSignatures(txHash, txHashData, signatures);</span><br></pre></td></tr></table></figure>
+
+<p><em>(upstream <code>GnosisSafe.sol:142</code>)</em></p>
+<p>Re-submitting an old signature set produces a <em>different</em> hash, because the nonce has moved on. The signatures no longer match, and the call <em>reverts</em> — fails and undoes itself. Replay is impossible by construction rather than guarded by a flag.</p>
+<h3 id="Owners-live-on-chain-confirmations-live-off-chain"><a href="#Owners-live-on-chain-confirmations-live-off-chain" class="headerlink" title="Owners live on chain, confirmations live off chain"></a>Owners live on chain, confirmations live off chain</h3><p>The owner set lives on chain — as a <em>singly-linked list</em>, where each owner’s entry stores the address of the owner before it, with a constant <code>SENTINEL_OWNERS = address(0x1)</code> marking the start (<code>contracts/base/OwnerManager.sol:13</code>). The sentinel is a dummy value no real address can equal; it exists so the list always has a head.</p>
+<p>That is why <code>removeOwner</code> needs the <em>predecessor</em> of the owner being removed, and why a client removing the first owner has to know about the sentinel. The confirmation set is off-chain signatures instead, with one optional on-chain exception (<code>approvedHashes</code>). Keeping them apart lets the same owners confirm different transactions at once, and makes confirmation free.</p>
+<h3 id="Guards-run-before-and-after"><a href="#Guards-run-before-and-after" class="headerlink" title="Guards run before and after"></a>Guards run before <em>and</em> after</h3><p>A <em>guard</em> is a contract the Safe consults on every owner-executed transaction. <code>checkTransaction</code> can <strong>revert</strong> — veto the transaction, even after a legitimate quorum (the required number of owners) signed it. <code>checkAfterExecution</code> runs afterwards, for bookkeeping you can only compute once you know the outcome: gas used, success flag, post-state invariants. A guard that ran only before could not see the result; one that ran only after could not stop anything.</p>
+<h3 id="Modules-skip-the-threshold-on-purpose"><a href="#Modules-skip-the-threshold-on-purpose" class="headerlink" title="Modules skip the threshold, on purpose"></a>Modules skip the threshold, on purpose</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">function execTransactionFromModule(address to, uint256 value, bytes memory data, Enum.Operation operation)</span><br><span class="line">    public virtual returns (bool success)</span><br><span class="line">&#123;</span><br><span class="line">    require(msg.sender != SENTINEL_MODULES &amp;&amp; modules[msg.sender] != address(0), &quot;GS104&quot;);</span><br><span class="line">    success = execute(to, value, data, operation, gasleft());</span><br><span class="line">    &#123; ... &#125;</span><br></pre></td></tr></table></figure>
+
+<p><em>(upstream <code>contracts/base/ModuleManager.sol:61</code>)</em></p>
+<p>A <em>module</em> is a <strong>policy engine</strong> — spending limits, allowlists, automation — that the owners have explicitly delegated to. It executes with zero owner confirmations. The <code>require</code> line means only an enabled module may call this (Safe’s error code <code>GS104</code> means “module does not exist”), and <code>gasleft()</code> forwards the gas that is left. Two things protect this path: <code>enableModule</code> is <code>authorized</code>, so adding one required a quorum, and the module’s own code is the only thing that runs. Notably, <strong>the guard is not consulted on this path</strong> — the sharpest edge in the whole design, and worth stating plainly rather than discovering.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line">owner A ─┐</span><br><span class="line">owner B ─┼─ sign EIP-712 hash (off chain, no gas)</span><br><span class="line">owner C ─┘</span><br><span class="line">                  │</span><br><span class="line">                  ▼</span><br><span class="line">      signatures sorted by signer address</span><br><span class="line">                  │</span><br><span class="line">                  ▼</span><br><span class="line"> ┌──────────────────────────────────────────┐</span><br><span class="line"> │  execTransaction(to, value, data, ...,    │</span><br><span class="line"> │                  signatures)              │</span><br><span class="line"> │                                          │</span><br><span class="line"> │  nonce++ → hash → checkSignatures()      │</span><br><span class="line"> │           → guard.checkTransaction()      │</span><br><span class="line"> │           → execute()                    │</span><br><span class="line"> │           → guard.checkAfterExecution()  │</span><br><span class="line"> └──────────────────────────────────────────┘</span><br><span class="line">                  │</span><br><span class="line">                  ▼</span><br><span class="line">        ExecutionSuccess / ExecutionFailure</span><br></pre></td></tr></table></figure>
+
+<p>The three arrows at the top are off-chain signatures, which cost no gas; the one box is the single on-chain transaction, read top to bottom; the last arrow is the result flag the caller receives.</p>
+<p><code>checkSignatures</code> is where the client’s habits get punished. It picks up mid-loop, with <code>v</code> selecting which kind of signature it is looking at:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">&#125; else if (v == 1) &#123;</span><br><span class="line">    currentOwner = address(uint160(uint256(r)));</span><br><span class="line">    require(msg.sender == currentOwner || approvedHashes[currentOwner][dataHash] != 0, &quot;GS025&quot;);</span><br><span class="line">&#125; else if (v &gt; 30) &#123;</span><br><span class="line">    currentOwner = ecrecover(keccak256(abi.encodePacked(&quot;\x19Ethereum Signed Message:\n32&quot;, dataHash)), v - 4, r, s);</span><br><span class="line">&#125; else &#123;</span><br><span class="line">    currentOwner = ecrecover(dataHash, v, r, s);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><em>(upstream <code>GnosisSafe.sol:286</code>)</em></p>
+<p>A signature is three numbers, conventionally called <code>r</code>, <code>s</code> and <code>v</code>. Safe overloads <code>v</code> — normally just “which of two recovery cases applies” — to pick one of four signature flavours. <code>ecrecover</code> is a built-in function that recovers the signer’s address from a signature and the message hash; the recovered address must turn out to be an owner. The excerpt shows three flavours; just below it, the original handles <code>v == 0</code> (an EIP-1271 contract signature, with the owner address packed into <code>r</code>) and runs the final ownership checks.</p>
+<table>
+<thead>
+<tr>
+<th><code>v</code></th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>27 / 28</td>
+<td>EIP-712 typed data (<code>v = 27 + recid</code>)</td>
+</tr>
+<tr>
+<td>31 / 32</td>
+<td><code>eth_sign</code> — the contract subtracts 4, so the client must add it</td>
+</tr>
+<tr>
+<td>1</td>
+<td>on-chain <code>approveHash</code>, with the approver packed into <code>r</code></td>
+</tr>
+<tr>
+<td>0</td>
+<td>EIP-1271 contract signature, with the owner packed into <code>r</code></td>
+</tr>
+</tbody></table>
+<p>And the check that bites is one line below this excerpt: each recovered owner must be <em>strictly greater</em> than the previous one. So <strong>the signatures must be sorted ascending by signer address</strong>, or the call reverts with <code>GS026</code>.</p>
+<h2 id="What-the-client-has-to-get-right"><a href="#What-the-client-has-to-get-right" class="headerlink" title="What the client has to get right"></a>What the client has to get right</h2><p>The client computes the same hash the contract computes, using ethers’ typed-data encoder (<code>src/wallet.js:81</code>) — if the two hashed different bytes, every signature would cover a hash the contract never checks. A signing loop then collects signatures one owner at a time, stopping once it has the threshold, and hands the sorted bundle to a sender (<code>src/wallet.js:250</code>).</p>
+<p>The bundle the contract expects is built in three steps:</p>
+<figure class="highlight js"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">signatures.<span class="title function_">sort</span>(<span class="function">(<span class="params">left, right</span>) =&gt;</span> left.<span class="property">signer</span>.<span class="title function_">toLowerCase</span>().<span class="title function_">localeCompare</span>(right.<span class="property">signer</span>.<span class="title function_">toLowerCase</span>()));</span><br><span class="line"><span class="keyword">let</span> signatureBytes = <span class="string">&quot;0x&quot;</span>;</span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">const</span> sig <span class="keyword">of</span> signatures) &#123;</span><br><span class="line">    signatureBytes += sig.<span class="property">data</span>.<span class="title function_">slice</span>(<span class="number">2</span>);</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">return</span> signatureBytes;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/wallet.js:129</code>. <code>localeCompare</code> on the lowercased addresses puts them in ascending order; anything else fails <code>GS026</code> on chain. <code>slice(2)</code> strips each signature’s <code>0x</code> prefix so the bytes concatenate into one hex string, which is the format <code>execTransaction</code> expects.</p>
+<p>The third sharp edge is a two-character rewrite. <code>personal_sign</code> produces a <code>v</code> of 27 or 28 (<code>0x1b</code> or <code>0x1c</code> at the end of the signature); Safe treats <code>v &gt; 30</code> as “<code>eth_sign</code>, subtract 4”, so the client must add 4 itself. The original line (<code>src/main.js:131</code>) signs the hash and runs <code>.replace(/1b$/, &quot;1f&quot;)</code> and <code>.replace(/1c$/, &quot;20&quot;)</code> over the result — 31 or 32 instead of 27 or 28. Get it wrong and <code>ecrecover</code> recovers a different address, which fails <code>GS026</code>, with an error message that says nothing about signatures.</p>
+<p>The client also predicts its own Safe address before deployment (<code>src/utils.js:6</code>). CREATE2 — an Ethereum instruction that deploys a contract to an address derived from its code and a chosen <em>salt</em> — makes proxy addresses deterministic: one audited <em>singleton</em> (the master copy of the contract) serves every Safe, a <em>factory</em> deploys small <em>proxies</em> (forwarders with no logic of their own) pointing at it, and upgrading the wallet is one transaction for all of them.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>m-of-n versus n-of-n is a governance decision, not a technical one.</strong> Unanimity is immune to one compromised key but brittle: one lost hardware wallet or one unreachable co-signer bricks the treasury forever. m-of-n buys liveness at the price of accepting that <em>m</em> colluding — or coerced — owners can move funds. There is no cryptographic way around that.</p>
+<p><strong>The gas-refund fields are inside the signed hash, and that is deliberate.</strong> <code>execTransaction</code> refunds <code>gasUsed + baseGas</code> × <code>gasPrice</code> to <code>refundReceiver</code> (or <code>tx.origin</code> — the address that originally sent the transaction). A malicious <code>baseGas</code>/<code>gasPrice</code> in an otherwise legitimate signed transaction would drain the Safe in the relayer’s favour — a <em>relayer</em> is a service that submits your signed transaction and is repaid from within it. So those fields are part of what the owners sign, and a client that builds the hash from a subset of the fields is exploitable.</p>
+<p><strong>Griefing is cheap.</strong> Anybody who can submit a transaction can bump the nonce, invalidating signatures you have already collected. No funds are lost, but the coordination has to start over. On-chain <code>approveHash</code> confirmations are permanent noise in an indexer.</p>
+<p><strong>A module can move the entire balance with zero owner signatures and no guard check.</strong> The mitigation is entirely procedural: enable modules sparingly, prefer <code>MultiSendCallOnly</code> (a Safe batching helper limited to plain calls), and remember that disabling a module also needs the linked-list predecessor.</p>
+<p><strong>The client is where the difficulty lives.</strong> The contract is simple and audited; the hard parts are producing byte-exact signatures (the <code>v</code> rewriting, the sorted concatenation, the <code>GS026</code> rule) and the off-chain coordination around them. That is why the real Safe ecosystem is a transaction service plus an SDK plus a web UI, and not a contract.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Use the official SDK.</strong> Every one of the sharp edges above — the <code>v</code> rewrite, the signature ordering, the domain separator, CREATE2 derivation — is already solved in <code>@gnosis.pm/safe-core</code> and <code>@safe-global/safe-gateway</code>. Re-implementing them to “understand them better” is how a client ends up with a nine-parameter <code>setup</code> call that the deployed contract does not recognise.</p>
+<p><strong>Fix the two bugs that are actually in this repository.</strong> <code>src/wallet.js:41</code> calls <code>safe.getModulesPaginated(AddressOne, 10)</code> with <code>AddressOne</code> never defined; the resulting <code>ReferenceError</code> is swallowed by the surrounding <code>catch</code>, so the call can never work and the code always falls back to <code>handler.getModules()</code>. And the local ABI declares a nine-argument <code>setup(address[],uint256,address,bytes,address,address,uint256,address,uint256)</code> — the canonical mainnet 1.3.0 singleton at <code>0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552</code> has the eight-argument version, and the published <code>safe-deployments</code> artifacts all use eight. As it stands, <code>Safe.setup()</code> in this repository would send calldata the deployed Safe cannot decode, fall through to the fallback handler, and revert.</p>
+<p><strong>Add the tests.</strong> There are none — no reentrancy test, no signature-ordering test, no nonce-replay test, no module-abuse test, no guard-veto test. The README is still the stock Hardhat (a development framework for Ethereum contracts) sample README describing a contract that does not exist in the tree, <code>dotenv</code> — a library that loads settings from a <code>.env</code> file — is a declared dependency that is never imported, and <code>web3</code> (a JavaScript library for talking to Ethereum) is instantiated and passed around but never used. None of that matters for a contract; all of it matters for a client.</p>
+<p><strong>And make the deployment target real.</strong> The default RPC — the HTTP endpoint a client sends requests to — is <code>https://test.lixb.io</code> and the signer service is <code>https://safebox-test.hicom.com/...</code> — both of which are dead today. A client that talks to a chain that no longer exists is a good way to learn the protocol and a bad way to ship one.</p>
+<p>The version story is the part worth remembering: v0.1.0’s <code>submitTransaction</code> / <code>confirmTransaction</code> / <code>executeTransaction</code> and its <code>isExecuted</code> flag are not outdated idioms, they are a different architecture — a stateful queue with a cursor — and the industry moved to a stateless, signature-carried design. The move was driven by the costs the old model imposed: unbounded storage, griefable pending transactions, and a gas cost that grew with usage.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/safe-global/safe-smart-account">safe-global/safe-smart-account</a> — the Safe v1.3.0 contracts quoted here</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/safe-global/safe-deployments">safe-global/safe-deployments</a> — deployment addresses and ABI artifacts</li>
+<li><a target="_blank" rel="noopener" href="https://docs.safe.global/">Safe documentation</a> — protocol, contracts and SDK guides</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-712">EIP-712: typed structured data hashing and signing</a> — the standard behind the Safe hash</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-1271">EIP-1271: standard signature validation method for contracts</a> — how a contract owner signs</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/OpenZeppelin/openzeppelin-contracts">OpenZeppelin Contracts</a> — audited building blocks used across the ecosystem</li>
+<li><a target="_blank" rel="noopener" href="https://docs.soliditylang.org/">Solidity documentation</a> — the language the Safe contracts are written in</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-transaction-is-a-signed-value-not-a-stored-record"><span class="toc-number">2.1.</span> <span class="toc-text">The transaction is a signed value, not a stored record</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Replay-protection-is-built-into-the-hash"><span class="toc-number">2.2.</span> <span class="toc-text">Replay protection is built into the hash</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Owners-live-on-chain-confirmations-live-off-chain"><span class="toc-number">2.3.</span> <span class="toc-text">Owners live on chain, confirmations live off chain</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Guards-run-before-and-after"><span class="toc-number">2.4.</span> <span class="toc-text">Guards run before and after</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Modules-skip-the-threshold-on-purpose"><span class="toc-number">2.5.</span> <span class="toc-text">Modules skip the threshold, on purpose</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-the-client-has-to-get-right"><span class="toc-number">4.</span> <span class="toc-text">What the client has to get right</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

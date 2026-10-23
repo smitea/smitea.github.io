@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="nmap tells you that something listens on port 554. net-scan tells you it is a camera whose password is 12345 — and hands you a report you can act on.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Audit the Devices on Your Own Network">
+<meta property="og:url" content="http://shawhuang.com/2026/09/10/net-scan/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="nmap tells you that something listens on port 554. net-scan tells you it is a camera whose password is 12345 — and hands you a report you can act on.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-09-10T01:31:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:52:42.933Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Audit the Devices on Your Own Network</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2026/09/27/parrots/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2026/09/02/security-tools/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">1.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Five-layers"><span class="toc-number">1.1.</span> <span class="toc-text">Five layers</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Everything-offline"><span class="toc-number">1.2.</span> <span class="toc-text">Everything offline</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rustls-and-a-TUI"><span class="toc-number">1.3.</span> <span class="toc-text">rustls, and a TUI</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">2.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Being-intrusive-on-your-own-network"><span class="toc-number">2.1.</span> <span class="toc-text">Being intrusive on your own network</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-rule-engine"><span class="toc-number">2.2.</span> <span class="toc-text">The rule engine</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Baseline-diffing"><span class="toc-number">2.3.</span> <span class="toc-text">Baseline diffing</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Two-async-bugs-one-week-apart"><span class="toc-number">3.</span> <span class="toc-text">Two async bugs, one week apart</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Audit the Devices on Your Own Network
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2026-09-10T01:31:00.000Z" itemprop="datePublished">2026-09-10</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>I own a router, a half-dozen cameras, a smart lock, a video doorbell and a speaker. Every so often I wonder which of them is still running the password it shipped with. <code>nmap</code> will tell me there is something on <code>192.168.1.37:554</code>. It will not tell me that the thing on <code>192.168.1.37:554</code> is a Hikvision camera whose admin password is <code>12345</code> and whose firmware still carries CVE-2017-7921.</p>
+<p><strong>What this post is about.</strong> That gap is what <code>net-scan</code> was built to close. It is a security <em>self-check</em> tool: you point it at your own network, and it produces a report you can act on — and hand to someone else who does not speak security. You will see how the scan is layered, why the tool refuses to leave your network unless you ask it to, and the parts of the code that exist but are never called.</p>
+<p><strong>What you need to know first.</strong> A <em>port</em> is a numbered door into a device: a camera serving video on port 554 is a different door from the one serving its web interface. A <em>firmware</em> is the software baked into the device, and it is the thing that carries bugs. A <em>CVE</em> is a public identifier for one such bug — <code>CVE-2017-7921</code> names exactly one of them. The tool is written in Rust, a compiled language that checks its types before the program runs; you do not need to know Rust to follow this post.</p>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><p>The scoping decision came first, and everything else follows from it: <strong>this tool is for your own network.</strong> Not a subnet — a range of addresses on the same network — you have permission to test, not a range you found in a Shodan export, where Shodan is a search engine that indexes internet-exposed devices. Your network.</p>
+<p>That is enforced in code, not just in the README:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> !cli.scan_external &amp;&amp; !<span class="title function_ invoke__">subnet_on_interface</span>(&amp;subnet, &amp;iface) &#123;</span><br><span class="line">    <span class="keyword">return</span> <span class="title function_ invoke__">Err</span>(Error::<span class="title function_ invoke__">Other</span>(<span class="built_in">format!</span>(</span><br><span class="line">        <span class="string">&quot;subnet &#123;&#125; is not on local interface &#123;&#125;; pass --scan-external to allow&quot;</span>,</span><br><span class="line">        subnet.<span class="title function_ invoke__">cidr</span>(), iface.name,</span><br><span class="line">    )).<span class="title function_ invoke__">into</span>());</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/main.rs:62</code>. Cross-subnet scanning requires an explicit flag, and the flag’s help text says why: “Opt-in: allow scanning a subnet that’s not on the local interface. Default off (safer — won’t accidentally reach across your router).”</p>
+<p>This constraint also dictates the <em>shape</em> of the tool. A penetration-testing tool wants breadth: scan everything, try everything, report what responded. A home self-check wants the opposite: a small, curated set of checks with high precision, because a report full of false positives trains its reader to ignore it.</p>
+<h3 id="Five-layers"><a href="#Five-layers" class="headerlink" title="Five layers"></a>Five layers</h3><p>The scan is organised as five layers, each with a different failure mode:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Question</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0 — discovery</td>
+<td>Who is here?</td>
+<td>ARP sweep + ONVIF WS-Discovery + mDNS + SSDP, concurrently</td>
+</tr>
+<tr>
+<td>1 — ports</td>
+<td>What speaks?</td>
+<td>Raw SYN scan over 13 IoT-specific ports</td>
+</tr>
+<tr>
+<td>2 — fingerprint</td>
+<td>What is it?</td>
+<td>RTSP <code>OPTIONS</code>, ONVIF SOAP, HTTP banner, OUI prefix</td>
+</tr>
+<tr>
+<td>3 — credentials</td>
+<td>Is it open?</td>
+<td>Layered HTTP Basic/Digest probe against default credentials</td>
+</tr>
+<tr>
+<td>4 — risk</td>
+<td>Does it matter?</td>
+<td>Rule engine: 190 rules → severity + remediation</td>
+</tr>
+</tbody></table>
+<p>In plain terms: the first layer finds out which machines are switched on, using four different methods at once — an <em>ARP sweep</em> asks each address “who answers, and what hardware address do you have?”, <em>ONVIF WS-Discovery</em> is the video-industry standard for cameras shouting “here I am”, <em>mDNS</em> is the zeroconf protocol laptops use to find printers and speakers, and <em>SSDP</em> is the protocol used by streaming boxes and smart TVs. The second layer knocks on 13 ports that internet-of-things devices typically use, sending a <em>SYN</em> packet, which is the first half of a TCP connection handshake. The third layer asks the device to identify itself — by the protocol it speaks, by the banner it returns, or by its <em>OUI prefix</em>, the first half of its hardware address, which usually names the manufacturer. The fourth layer tries the passwords these devices ship with. The fifth layer turns all of that into a severity and a fix.</p>
+<p>Layers 2, 3 and 4 are deliberately separate modules, because they fail in different ways. Identification is probabilistic — a <em>banner</em> is the header a device sends back, and matching it with a regular expression is a guess — and the code ranks its sources by confidence (RTSP server banner &gt; HTTP <code>Server</code> header &gt; HTML <code>&lt;title&gt;</code> &gt; MAC OUI). Authentication is <em>stateful</em> and mutates the device: every wrong password increments a lockout counter on the real hardware. Risk is a pure function over the first two, which is why it can be tested against a JSON rule file with no network at all.</p>
+<h3 id="Everything-offline"><a href="#Everything-offline" class="headerlink" title="Everything offline"></a>Everything offline</h3><p><code>data/oui.json</code> (547 IEEE OUI prefixes), <code>data/rules.json</code> (190 rules) and <code>data/default_creds.json</code> (55 factory credentials) are all embedded at compile time with <code>include_str!</code> and parsed once behind a <code>Lazy</code> static — a value Rust builds the first time something asks for it, and then reuses:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">fn</span> <span class="title function_">load</span>() <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;<span class="keyword">Self</span>&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">raw</span> = <span class="built_in">include_str!</span>(<span class="string">&quot;../../data/oui.json&quot;</span>);</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">file</span>: OuiFile = serde_json::<span class="title function_ invoke__">from_str</span>(raw)</span><br><span class="line">        .<span class="title function_ invoke__">map_err</span>(|e| crate::error::Error::<span class="title function_ invoke__">Parse</span>(<span class="built_in">format!</span>(<span class="string">&quot;oui.json: &#123;e&#125;&quot;</span>)))?;</span><br><span class="line">    <span class="keyword">let</span> <span class="keyword">mut </span><span class="variable">by_prefix</span> = std::collections::HashMap::<span class="title function_ invoke__">new</span>();</span><br><span class="line">    <span class="keyword">for</span> <span class="variable">e</span> <span class="keyword">in</span> file.entries &#123; <span class="keyword">if</span> <span class="keyword">let</span> <span class="variable">Some</span>(b) = <span class="title function_ invoke__">parse_prefix</span>(&amp;e.prefix) &#123; by_prefix.<span class="title function_ invoke__">insert</span>(b, e); &#125; &#125;</span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(<span class="keyword">Self</span> &#123; by_prefix &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/identify/oui.rs:32</code>. The table is keyed by the first three bytes of a hardware address — the <em>MAC</em> address every network card has; the IEEE assigns each manufacturer a block of them, so those bytes often name the maker. Three reasons for embedding, all practical: a self-check tool must work on a LAN with no internet, which is often exactly the condition where you want an audit; <code>include_str!</code> means zero runtime file I/O; and a security tool should not depend on a third-party API at runtime.</p>
+<h3 id="rustls-and-a-TUI"><a href="#rustls-and-a-TUI" class="headerlink" title="rustls, and a TUI"></a>rustls, and a TUI</h3><p><code>reqwest</code> is configured with <code>default-features = false, features = [&quot;rustls-tls&quot;]</code> — no OpenSSL headers, no <code>brew install openssl</code>. <code>rustls</code> is a TLS implementation written in Rust, and TLS is the encryption layer under <code>https</code>. The tool is meant to be installed by a non-specialist on a laptop.</p>
+<p>The interactive view is ratatui — a <em>TUI</em> is a terminal user interface, a program that draws a text-mode interface with a keyboard instead of a mouse — and it renders captured camera snapshots inline using <code>ratatui-image</code>, which negotiates the terminal’s graphics protocol automatically (Sixel → Kitty → half-block fallback).</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><p>Discovery runs the three UDP probes concurrently — UDP is the connectionless cousin of TCP: it sends a packet and does not wait for a reply:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">ws_handle</span> = crate::identify::onvif::<span class="title function_ invoke__">ws_discover_multicast</span>(bind_ip, timeout);</span><br><span class="line"><span class="keyword">let</span> <span class="variable">mdns_handle</span> = discover::<span class="title function_ invoke__">mdns_query</span>(bind_ip, &amp;mdns_services, timeout);</span><br><span class="line"><span class="keyword">let</span> <span class="variable">ssdp_handle</span> = discover::<span class="title function_ invoke__">ssdp_search</span>(bind_ip, <span class="string">&quot;ssdp:all&quot;</span>, timeout);</span><br><span class="line"><span class="keyword">let</span> (ws_res, mdns_res, ssdp_res) = tokio::join!(ws_handle, mdns_handle, ssdp_handle);</span><br></pre></td></tr></table></figure>
+
+<p><code>src/scan.rs:360</code>. <code>tokio::join!</code> waits for all three at once instead of one after another, which is the difference between a fast scan and a slow one. Then, for each live host, the port scan runs, then fingerprinting, then credentials, then risk.</p>
+<h3 id="Being-intrusive-on-your-own-network"><a href="#Being-intrusive-on-your-own-network" class="headerlink" title="Being intrusive on your own network"></a>Being intrusive on your own network</h3><p>This is the part where a home tool has to behave like a guest. The credential probe tries the no-auth case first, then falls back to credentials — and it watches the device’s reaction:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">f</span> = user_failures.<span class="title function_ invoke__">entry</span>(user.<span class="title function_ invoke__">clone</span>()).<span class="title function_ invoke__">or_insert</span>(<span class="number">0</span>);</span><br><span class="line">*f += <span class="number">1</span>;</span><br><span class="line">total_failures += <span class="number">1</span>;</span><br><span class="line"><span class="keyword">if</span> *f &gt;= MAX_FAILURES_PER_USER &#123;</span><br><span class="line">    cooldown_until.<span class="title function_ invoke__">insert</span>(user.<span class="title function_ invoke__">clone</span>(), Instant::<span class="title function_ invoke__">now</span>() + PER_USER_COOLDOWN);</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">// Slow down to avoid lockout.</span></span><br><span class="line">tokio::time::<span class="title function_ invoke__">sleep</span>(Duration::<span class="title function_ invoke__">from_millis</span>(<span class="number">500</span>)).<span class="keyword">await</span>;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/auth/probe.rs:104</code>, with <code>MAX_FAILURES_PER_USER = 3</code>, <code>MAX_FAILURES_PER_HOST = 10</code>, <code>PER_USER_COOLDOWN = 30s</code>. The counter tracks how many times this username has failed, and after three failures that username is put in a 30-second cooldown box. A real attack tool would <em>want</em> the lockout; a self-check tool must not brick your own doorbell.</p>
+<p>The same applies to evidence capture. The RTSP snapshot is only ever taken with a credential pair the tool itself validated, and only when the user explicitly asks; <code>src/stream/preview.rs:89</code> refuses with “preview requires non-empty credentials” if either half is empty.</p>
+<h3 id="The-rule-engine"><a href="#The-rule-engine" class="headerlink" title="The rule engine"></a>The rule engine</h3><p>Rules live in JSON, each with an optional precondition:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> <span class="keyword">let</span> <span class="variable">Some</span>(check) = &amp;rule.check &#123;</span><br><span class="line">    <span class="keyword">match</span> check.<span class="title function_ invoke__">as_str</span>() &#123;</span><br><span class="line">        <span class="string">&quot;no_auth_allowed&quot;</span> <span class="keyword">if</span> !ctx.no_auth_detected =&gt; <span class="keyword">continue</span>,</span><br><span class="line">        <span class="string">&quot;default_cred&quot;</span> <span class="keyword">if</span> !ctx.default_cred_detected =&gt; <span class="keyword">continue</span>,</span><br><span class="line">        <span class="string">&quot;rtsp_unencrypted&quot;</span> <span class="keyword">if</span> !ctx.rtsp_unencrypted =&gt; <span class="keyword">continue</span>,</span><br><span class="line">        _ =&gt; &#123;&#125; &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">let</span> <span class="variable">severity</span> = rule.severity_override.<span class="title function_ invoke__">unwrap_or_else</span>(|| <span class="title function_ invoke__">severity_from_cvss</span>(rule.cvss));</span><br></pre></td></tr></table></figure>
+
+<p><code>src/risk/rules.rs:141</code>. The precondition is the false-positive killer: a rule about a backdoor that requires default credentials only fires if default credentials were actually accepted. The <code>match</code> arms each name a condition and skip the rule when it is not met; the final <code>_ =&gt; &#123;&#125;</code> arm catches every other case and does nothing. Severity comes from <em>CVSS</em>, the standard scoring system for vulnerabilities, unless a rule overrides it, and the report renders it with plain-language labels (严重 / 高 / 中 / 低, that is severe, high, medium and low) plus <em>remediation</em> text — plain instructions for how to fix the problem — because the reader is a homeowner, not a penetration tester.</p>
+<h3 id="Baseline-diffing"><a href="#Baseline-diffing" class="headerlink" title="Baseline diffing"></a>Baseline diffing</h3><p><code>--diff-baseline</code> compares a new scan against a stored one, matching devices by IP and findings by rule id, and reports what is new, what disappeared, and what changed severity. This turns the tool from a snapshot into a regression detector: “since last month’s scan, this new CVE appeared on your doorbell.”</p>
+<h2 id="Two-async-bugs-one-week-apart"><a href="#Two-async-bugs-one-week-apart" class="headerlink" title="Two async bugs, one week apart"></a>Two async bugs, one week apart</h2><p>The most transferable thing in this repository is not the scanner. It is the pair of commits that fixed two different ways of using async incorrectly.</p>
+<p>The first was a nested runtime inside a <code>block_on</code>. <code>block_on</code> is the call that runs an async program to completion; creating a second runtime inside one deadlocks. The fix was to stop nesting and simply <code>.await</code> directly, because a runtime was already running.</p>
+<p>The second was <code>blocking_send</code> from inside a runtime worker, which panics with “Cannot block the current thread from within a runtime”. The progress callbacks are invoked from the <em>blocking</em> pcap loops — pcap being the library that captures raw packets — so they cannot await. The fix is to make the telemetry lossy:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">|sent, total| &#123; <span class="keyword">let</span> <span class="variable">_</span> = tx.<span class="title function_ invoke__">try_send</span>(ScanUpdateMsg::<span class="title function_ invoke__">Status</span>(</span><br><span class="line">    <span class="built_in">format!</span>(<span class="string">&quot;arp &#123;sent&#125;/&#123;total&#125;&quot;</span>)</span><br><span class="line">)); &#125;,</span><br></pre></td></tr></table></figure>
+
+<p><code>src/scan.rs:50</code>. <code>try_send</code> hands a message to a queue if there is room and gives up if there is not. Note the <code>let _ =</code>: even a <code>Full</code> error is deliberately swallowed. A dropped “arp 120/254” tick is irrelevant. A panicking scan is fatal. Progress telemetry must be allowed to lose messages.</p>
+<p>If you are mixing blocking packet capture with tokio, the question to ask is always: <em>which context am I in right now?</em></p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>False positives are the enemy.</strong> The CVE sync tool (<code>tools/nvd_sync.py</code>) applies a two-stage filter: a list of terms that disqualify an entry entirely (<code>erlang</code>, <code>tomcat</code>, <code>jackson-datibind</code>, <code>openssl</code>, <code>spring-boot</code>) and a list of terms that are <em>required</em> (<code>camera</code>, <code>smart lock</code>, <code>nvr</code>). Without that filter, a 30-day NVD pull — the National Vulnerability Database, the public feed of newly published CVEs — is thousands of irrelevant server CVEs and the report becomes noise.</p>
+<p><strong>The value is in the rules and the report, not the packets.</strong> Anyone can write an ARP scanner; <code>nmap</code> exists. What this tool adds is the mapping from “device on port 554” to “this specific model, this firmware, this CVE, this severity, this fix” — and a report format a non-specialist can act on.</p>
+<p><strong>The report is written in Chinese.</strong> The severity labels and remediation text are in Chinese, because the intended reader is the person who owns the devices. That is a deliberate choice, and it is why the tool’s report title is 家庭网络安全体检 — “home network security health check”.</p>
+<p><strong>The tool is intrusive by nature.</strong> Even on your own network, an ARP sweep plus SYN scans plus credential attempts will show up in your router’s logs and may slow a cheap switch. The counter-measures are the 500 ms delay between credential attempts and the per-user cooldown; there is no global rate limiter, which is the gap I would fix first.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p>The interesting thing about this repository is the gap between “module exists, is tested, and is correct” and “module is actually used”.</p>
+<p><code>src/identify/oui.rs::lookup()</code> is implemented, unit-tested, and never called. <code>scan.rs</code> loads the OUI table and then does <code>let _ = oui;</code>. The same is true of <code>identify/banner_match.rs::best_match()</code> — only the RTSP branch of it is used; the HTTP-server and HTML-title branches are dead in the pipeline. And <code>auth/default.rs::for_vendor()</code>, which knows which factory credentials belong to which vendor, is never called either: the scan tries all 55 vendors’ credentials against every HTTP device.</p>
+<p>That last one is not just wasteful, it is wrong. Trying <code>admin/12345</code> against a device that has never heard of it is exactly the kind of noise that erodes trust in a report.</p>
+<p>The remaining gaps are the same shape:</p>
+<ul>
+<li><code>--concurrency</code> is parsed, documented, defaulted to 1000, and wired to nothing. Either implement it or delete it.</li>
+<li><code>DeviceReport</code> hardcodes <code>model: None, firmware: None</code>, which means the 18 rules carrying a <code>firmware_lt</code> constraint can never fire in practice. The unit tests pass because they construct a <code>DeviceContext</code> directly instead of going through the scanner.</li>
+<li><code>src/auth/creds.rs</code> is a nine-byte file containing <code>//! Stub.</code></li>
+<li><code>reqwest</code> is in <code>Cargo.toml</code> but every HTTP request in the codebase is hand-rolled over <code>tokio::net::TcpStream</code>.</li>
+</ul>
+<p>The build order shows through all of this: implement a module thoroughly with tests, then wire it up later. The wiring is about 60% done.</p>
+<p>If I were picking up this codebase again, the first commit would be to make the orchestrator call what the library already knows how to do — OUI lookup, banner matching, per-vendor credentials, ONVIF model and firmware extraction — and the second would be to delete the flags that do nothing. A tool whose report says “I checked 55 credential sets against your camera” when it should have checked four is worse than one that says nothing.</p>
+<p>The 136 tests and the clean crate structure are worth keeping. The discipline of separating <em>what a device is</em>, <em>whether it is open</em>, and <em>whether that matters</em> is the part of this design that has held up best — even in the places where I did not finish wiring it up.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/ratatui/ratatui">ratatui</a> — the Rust library the interactive terminal interface is drawn with</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/rust-pcap/pcap">rust-pcap</a> — a Rust binding to libpcap, the packet capture library behind the scanning loops</li>
+<li><a target="_blank" rel="noopener" href="https://standards-oui.ieee.org/">IEEE Standards Association</a> — where the OUI prefixes that identify manufacturers are published</li>
+<li><a target="_blank" rel="noopener" href="https://nmap.org/">nmap</a> — the general-purpose scanner this tool borrows its discovery ideas from</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc793">RFC 793</a> — the original specification of TCP, including the three-way handshake the SYN scan uses</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/pnet/latest/pnet/">pnet</a> — a Rust crate for low-level packet and socket work</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">1.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Five-layers"><span class="toc-number">1.1.</span> <span class="toc-text">Five layers</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Everything-offline"><span class="toc-number">1.2.</span> <span class="toc-text">Everything offline</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#rustls-and-a-TUI"><span class="toc-number">1.3.</span> <span class="toc-text">rustls, and a TUI</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">2.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Being-intrusive-on-your-own-network"><span class="toc-number">2.1.</span> <span class="toc-text">Being intrusive on your own network</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-rule-engine"><span class="toc-number">2.2.</span> <span class="toc-text">The rule engine</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Baseline-diffing"><span class="toc-number">2.3.</span> <span class="toc-text">Baseline diffing</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Two-async-bugs-one-week-apart"><span class="toc-number">3.</span> <span class="toc-text">Two async bugs, one week apart</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

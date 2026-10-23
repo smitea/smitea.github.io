@@ -109,4 +109,74 @@ $(document).ready(function() {
       });
     }
   }
+
+
+  /**
+   * Applies a tag filter to the archive list. A null tag shows every post.
+   */
+  var filterArchiveByTag = function(tag) {
+    var $items = $("#archive .post-list > li.post-item");
+    var visible = 0;
+
+    $items.each(function() {
+      var tags = ($(this).attr("data-tags") || "").split(" ");
+      var show = !tag || tags.indexOf(tag) !== -1;
+      $(this).toggle(show);
+      if (show) visible++;
+    });
+
+    // hide the years that have no visible post left
+    $("#archive .post-list > li.post-year").each(function() {
+      var $year = $(this);
+      var hasVisible = false;
+
+      $year.nextUntil("li.post-year").each(function() {
+        if ($(this).css("display") !== "none") hasVisible = true;
+      });
+
+      $year.toggle(hasVisible);
+    });
+
+    $("#archive #tag-filter-empty").toggle(visible === 0);
+  };
+
+
+  /**
+   * Filters the archive list by tag. Clicking the active tag clears the
+   * filter and shows every post again.
+   */
+  $("#archive .tag-filter-item").click(function() {
+    var $filter = $(this);
+    var tag = $filter.data("tag");
+
+    if ($filter.hasClass("active")) {
+      $filter.removeClass("active");
+      filterArchiveByTag(null);
+    } else {
+      $filter.addClass("active").siblings().removeClass("active");
+      filterArchiveByTag(tag);
+    }
+  });
+
+
+  /**
+   * Applies the tag filter given in the url hash, e.g. #tech, or the first
+   * one by default.
+   */
+  var initialTag = window.location.hash.replace(/^#/, "");
+  var $initial = $("#archive .tag-filter-item").first();
+
+  if (initialTag) {
+    $("#archive .tag-filter-item").each(function() {
+      if ($(this).data("tag") === initialTag) {
+        $initial = $(this);
+        return false;
+      }
+    });
+  }
+
+  if ($initial.length) {
+    $initial.addClass("active").siblings().removeClass("active");
+    filterArchiveByTag($initial.data("tag"));
+  }
 });

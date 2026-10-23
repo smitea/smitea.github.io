@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="SSH, JDBC and native syscalls in one agent, one wire protocol, and Lua scripts that call across the network">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Split a Collector into Protocol Services">
+<meta property="og:url" content="http://shawhuang.com/2021/02/12/collector-microservices/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="SSH, JDBC and native syscalls in one agent, one wire protocol, and Lua scripts that call across the network">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2021-02-12T11:20:00.000Z">
+<meta property="article:modified_time" content="2026-10-22T18:15:09.275Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Split a Collector into Protocol Services</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2022/04/06/wyvern-nft-marketplace/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2021/02/01/monitoring-metrics/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-topology"><span class="toc-number">2.</span> <span class="toc-text">The topology</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-wire-protocol"><span class="toc-number">3.</span> <span class="toc-text">The wire protocol</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-connect-handshake-negotiates-the-signature"><span class="toc-number">3.1.</span> <span class="toc-text">The connect handshake negotiates the signature</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Rows-are-streamed-never-buffered"><span class="toc-number">3.2.</span> <span class="toc-text">Rows are streamed, never buffered</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Calling-a-service-from-Lua"><span class="toc-number">4.</span> <span class="toc-text">Calling a service from Lua</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Where-the-boundaries-actually-are"><span class="toc-number">5.</span> <span class="toc-text">Where the boundaries actually are</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-handling"><span class="toc-number">6.</span> <span class="toc-text">Failure handling</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">7.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">8.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">9.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Split a Collector into Protocol Services
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2021-02-12T11:20:00.000Z" itemprop="datePublished">2021-02-12</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>The Kotlin collector had one process that could talk to a database over JDBC, to a host over SSH, and — thanks to a stack of Perl scripts — to a running Oracle instance on a host it could only reach through a shell. The Rust rewrite had the same three jobs to do and a different problem: the three toolchains do not belong in one binary.</p>
+<p>So the Rust version is not one program. It is four, speaking one protocol.</p>
+<p><strong>What this post is about.</strong> It is about splitting one collector into several small services that talk over a network, and about the single protocol they share. You will learn why the split follows the <em>dependency</em> set rather than the feature list, what the wire looks like, and how a Lua script ends up able to call a remote Java database service as if it were a local function.</p>
+<p><strong>What you need to know first.</strong> A <em>service</em> here is a separate process that does one job and answers requests over a socket. A <em>schema</em> is the name of a group of remote functions — <code>host</code>, <code>database</code>, <code>agent</code> — and a <em>datasource</em> is one function in that group, together with the types of its arguments. Lua is a small scripting language; mlua is the Rust library that embeds it.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The collector has to reach three kinds of targets, and each needs a different dependency set that is hostile to the others:</p>
+<table>
+<thead>
+<tr>
+<th>Target</th>
+<th>Needs</th>
+<th>Language home</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A database (Oracle, MySQL, MSSQL, PostgreSQL, PolarDB)</td>
+<td>JDBC drivers — <code>ojdbc7.jar</code>, <code>mssql-jdbc</code>, <code>polardb-jdbc</code></td>
+<td>Java</td>
+</tr>
+<tr>
+<td>A remote host over SSH</td>
+<td><code>sshj</code>, key handling, SFTP</td>
+<td>Java</td>
+</tr>
+<tr>
+<td>The machine it is running on</td>
+<td><code>heim</code> (CPU/memory), <code>diskus</code> (directory size), <code>notify</code> (log watch)</td>
+<td>Rust</td>
+</tr>
+</tbody></table>
+<p>JDBC is Java’s database API: one jar per database vendor, each with its own quirks. SSH is the remote-shell protocol every server already speaks.</p>
+<p>Putting a JVM and the <code>heim</code> crate in the same process is possible and terrible: the JDBC driver set fights the native sysinfo crate for the classpath and the build, and a JVM crash in a JDBC call takes the collector with it.</p>
+<p>So the dependency set <em>is</em> the service boundary.</p>
+<h2 id="The-topology"><a href="#The-topology" class="headerlink" title="The topology"></a>The topology</h2><p>Four processes, one protocol (“Bee Data Transmission Protocol”, <code>libcore/codec</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Process</th>
+<th>Language</th>
+<th>Role</th>
+<th>Default port</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>bee</code> (collector)</td>
+<td>Rust (tokio)</td>
+<td>Runs the tasks, calls the other services, ships metrics to Riemann</td>
+<td>server 25205, HTTP 25201</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td>Rust (tokio)</td>
+<td>Native host agent; serves the <code>agent</code> schema; also dials back</td>
+<td>25204</td>
+</tr>
+<tr>
+<td><code>host</code></td>
+<td>Java (Netty + sshj)</td>
+<td>SSH remote host; serves the <code>host</code>/<code>dg</code> schema</td>
+<td>6141</td>
+</tr>
+<tr>
+<td><code>database</code></td>
+<td>Java (Netty + JDBC)</td>
+<td>The databases; serves the <code>database</code> schema</td>
+<td>6142</td>
+</tr>
+</tbody></table>
+<p>tokio is Rust’s asynchronous runtime: it runs many sockets on a small number of threads, so a program can wait on thousands of connections without a thread each. Riemann is the time-series database the metrics are shipped to.</p>
+<p>Addressing is by configuration, not discovery: <code>configs/proxy.toml</code> maps a schema to a protocol to a list of addresses, and the collector resolves the instance’s <code>host:port</code> through that table. A <code>mysql</code> instance resolves to the database service on <code>127.0.0.1:6142</code>; an <code>agent</code> instance resolves to the agent’s own address.</p>
+<p>The interesting part is that <strong>the collector is also a server</strong>. It serves the <code>bee</code> schema, and the agent uses it: the agent reads the collector’s address out of the instance parameters, opens a <em>client</em> connection back, fetches the list of log files it should watch, and pushes log bytes home. One binary, both roles of the same protocol.</p>
+<h2 id="The-wire-protocol"><a href="#The-wire-protocol" class="headerlink" title="The wire protocol"></a>The wire protocol</h2><p>The frame is deliberately small:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">HEAD 0xFF 0xFF | CMD(1) | LEN(4, u32) | DATA | MSG_LEN(4) | END 0x0D 0x0A</span><br></pre></td></tr></table></figure>
+
+<p>Each box is one field of the message: two start bytes, a one-byte command, a four-byte length (u32 means “unsigned 32-bit integer”), the payload, a second length field, and two end bytes. The overhead is a fixed 13 bytes, and <code>MSG_LEN</code> must equal <code>LEN + 13</code>. There are six commands: connect request/response, statement request/response, ping.</p>
+<p>The value encoding is five types plus nil — integer, number, boolean, string, bytes — and there is no map or struct on the wire:</p>
+<blockquote>
+<p>If the data you need to transfer is complex, serialize it into a byte stream yourself and send it as <code>Bytes</code>. The protocol does not care.</p>
+</blockquote>
+<p>That escape hatch is what lets one protocol carry a JDBC result set, a directory listing and a log line without a schema registry. The cost is that the schema lives in the payload, and the two implementations (Rust <code>libcore/codec</code>, Java <code>libcore/java</code>) can drift — the protocol document still says “no arrays” while the code has had a sixth type, <code>Array</code>, for a while.</p>
+<h3 id="The-connect-handshake-negotiates-the-signature"><a href="#The-connect-handshake-negotiates-the-signature" class="headerlink" title="The connect handshake negotiates the signature"></a>The connect handshake negotiates the signature</h3><figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">connect</span>(addr: &amp;<span class="type">str</span>, instance: Instance) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;SchemaClient&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">login_timeout</span> = instance.get_param::&lt;<span class="type">u32</span>&gt;(<span class="string">&quot;login_timeout&quot;</span>).<span class="title function_ invoke__">unwrap_or</span>(<span class="number">10</span>) <span class="keyword">as</span> <span class="type">u64</span> + <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">connection_timeout</span> = instance.get_param::&lt;<span class="type">u32</span>&gt;(<span class="string">&quot;connection_timeout&quot;</span>).<span class="title function_ invoke__">unwrap_or</span>(<span class="number">10</span>) <span class="keyword">as</span> <span class="type">u64</span> + <span class="number">1</span>;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">stream</span> = <span class="title function_ invoke__">timeout</span>(Duration::<span class="title function_ invoke__">from_secs</span>(connection_timeout), TcpStream::<span class="title function_ invoke__">connect</span>(addr)).<span class="keyword">await</span>...??;</span><br><span class="line">    stream.<span class="title function_ invoke__">set_nodelay</span>(<span class="literal">true</span>)?;</span><br><span class="line">    <span class="keyword">let</span> (reader, writer) = stream.<span class="title function_ invoke__">into_split</span>();</span><br><span class="line">    <span class="keyword">let</span> <span class="keyword">mut </span><span class="variable">reader_framed</span> = FramedRead::<span class="title function_ invoke__">new</span>(reader, PacketCodec);</span><br><span class="line">    <span class="keyword">let</span> <span class="keyword">mut </span><span class="variable">writer_framed</span> = FramedWrite::<span class="title function_ invoke__">new</span>(writer, PacketCodec);</span><br></pre></td></tr></table></figure>
+
+<p><code>async fn</code> is a Rust function that can wait without blocking its thread; <code>await</code> is where it waits. The two timeouts come from the instance’s parameters, default to 10 seconds, and get <code>+ 1</code> added — the client always gives up a second after the server does. <code>set_nodelay(true)</code> turns off Nagle’s algorithm, which delays small writes to batch them; for a request/response protocol that delay is pure latency. <code>into_split</code> cuts the socket into a reading half and a writing half, and <code>FramedRead</code>/<code>FramedWrite</code> wrap each half in <code>PacketCodec</code>, the object that turns a byte stream into frames and back.</p>
+<p><code>libcore/codec/src/client.rs:55</code>. The connect <em>response</em> carries the datasource signatures:</p>
+<blockquote>
+<p><code>ConnectResp::Ok &#123; schema, version, datasources: name → Vec&lt;DataType&gt; &#125;</code></p>
+</blockquote>
+<p>So the client learns, at connect time, <strong>exactly which remote functions exist and what arguments each one takes</strong>, and validates the call locally before it goes on the wire. A wrong argument type fails in the collector, not as an opaque error from a remote JVM.</p>
+<h3 id="Rows-are-streamed-never-buffered"><a href="#Rows-are-streamed-never-buffered" class="headerlink" title="Rows are streamed, never buffered"></a>Rows are streamed, never buffered</h3><p>The response is a state machine: <code>Columns</code>, then <code>Row</code>*, then <code>Abort</code> or <code>Error</code>. On the server side that is the <code>Request</code>/<code>Promise</code>/<code>Committer</code> model:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">new_commit</span>(&amp;<span class="keyword">mut</span> <span class="keyword">self</span>, columns: Columns) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;Committer&lt;<span class="symbol">&#x27;_</span>&gt;&gt; &#123;</span><br><span class="line">    <span class="keyword">self</span>.tx.<span class="title function_ invoke__">send</span>(State::<span class="title function_ invoke__">from</span>(columns.<span class="title function_ invoke__">clone</span>())).<span class="keyword">await</span>?;</span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(Committer &#123; tx: &amp;<span class="keyword">mut</span> <span class="keyword">self</span>.tx, args: &amp;<span class="keyword">self</span>.args, columns &#125;)</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">send</span>(&amp;<span class="keyword">mut</span> <span class="keyword">self</span>, state: State) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt; &#123; <span class="keyword">self</span>.tx.<span class="title function_ invoke__">send</span>(state).<span class="keyword">await</span>?; <span class="title function_ invoke__">Ok</span>(()) &#125;</span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">error</span>(&amp;<span class="keyword">mut</span> <span class="keyword">self</span>, err: Error) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt; &#123; <span class="keyword">self</span>.tx.<span class="title function_ invoke__">send</span>(State::<span class="title function_ invoke__">from</span>(err)).<span class="keyword">await</span>?; <span class="title function_ invoke__">Ok</span>(()) &#125;</span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">ok</span>(&amp;<span class="keyword">mut</span> <span class="keyword">self</span>) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt; &#123; <span class="keyword">self</span>.tx.<span class="title function_ invoke__">send</span>(State::<span class="literal">Ok</span>).<span class="keyword">await</span>?; <span class="title function_ invoke__">Ok</span>(()) &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>new_commit</code> announces the column names and hands back a <code>Committer</code>, the object that then sends each row, an error, or a final “ok”. <code>tx</code> is a channel: the producer (the query) puts states in, the consumer (the writer) takes them out.</p>
+<p><code>libcore/rust/src/request.rs:63</code>. The producer and the consumer are connected by an mpsc channel, so a query that returns ten million rows never materialises in memory on either side, the timeout applies per row, and the client can abort mid-stream.</p>
+<h2 id="Calling-a-service-from-Lua"><a href="#Calling-a-service-from-Lua" class="headerlink" title="Calling a service from Lua"></a>Calling a service from Lua</h2><p>The scripting environment is where the microservices become usable. A script declares which schema it needs, and gets a handle whose methods are exactly the remote service’s advertised datasources:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">local</span> schema_proxy = &#123; proxy = schema, instance = schema:get_instance() &#125;;</span><br><span class="line"><span class="keyword">for</span> _, call_name <span class="keyword">in</span> <span class="built_in">pairs</span>(schema_proxy.proxy:get_datasources()) <span class="keyword">do</span></span><br><span class="line">    schema_proxy[call_name] = <span class="function"><span class="keyword">function</span><span class="params">(...)</span></span></span><br><span class="line">        <span class="keyword">return</span> schema_proxy.proxy:call(call_name, request:get_uid(), ...);</span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line"><span class="keyword">end</span></span><br><span class="line"><span class="built_in">_G</span>[name] = schema_proxy;</span><br></pre></td></tr></table></figure>
+
+<p>The proxy is built at run time from the signature the server advertised at connect time: for every datasource the server listed, the script gets a method of the same name. The original loop defines two methods per datasource — the one shown, and a <code>try_</code>-prefixed twin that returns <code>&#123;code, msg, statement&#125;</code> instead of raising a Lua error when the call fails. <code>request:get_uid()</code> is the id of the current request, which the service uses to send the answer back to the right waiter. <code>_G[name] = schema_proxy</code> publishes the handle as a global, so <code>oracle:query(sql, 20)</code> becomes a statement request.</p>
+<p>A script that needs to work whether the host was reached by SSH or by a native agent asks for both, and takes whichever is bound:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">local</span> <span class="function"><span class="keyword">function</span> <span class="title">select_host</span><span class="params">(func)</span></span></span><br><span class="line">    <span class="keyword">local</span> statement = <span class="literal">nil</span>;</span><br><span class="line">    match_schema(<span class="string">&quot;dg&quot;</span>,    <span class="function"><span class="keyword">function</span> <span class="params">()</span></span> statement = func(dg) <span class="keyword">end</span>)</span><br><span class="line">    match_schema(<span class="string">&quot;host&quot;</span>,  <span class="function"><span class="keyword">function</span> <span class="params">()</span></span> statement = func(host) <span class="keyword">end</span>)</span><br><span class="line">    match_schema(<span class="string">&quot;agent&quot;</span>, <span class="function"><span class="keyword">function</span> <span class="params">()</span></span> statement = func(agent) <span class="keyword">end</span>)</span><br><span class="line">    <span class="keyword">return</span> statement;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<p><code>match_schema(schema, callback)</code> asks the session whether a schema is available (<code>session:is_find_schema</code>); if it is, it builds the handle (<code>schemas(schema)</code>) and runs the callback. <code>select_host</code> then tries the three host-like schemas in turn — Data Guard, SSH host, native agent — and keeps the first statement that comes back. The caller’s code is identical on all three paths; only the transport behind the handle differs.</p>
+<p>The <strong>timeout is the last positional argument</strong> of every remote call, and the argument marshalling is explicit:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">fn</span> <span class="title function_">from_lua_multi</span>(values: MultiValue&lt;<span class="symbol">&#x27;lua</span>&gt;, lua: &amp;<span class="symbol">&#x27;lua</span> Lua) <span class="punctuation">-&gt;</span> mlua::<span class="type">Result</span>&lt;<span class="keyword">Self</span>&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="keyword">mut </span><span class="variable">args</span> = Args::<span class="title function_ invoke__">from_lua_multi</span>(values, lua)?;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">timeout</span>: <span class="type">u32</span> = args.<span class="title function_ invoke__">remove</span>(args.<span class="title function_ invoke__">len</span>() - <span class="number">1</span>)?;   <span class="comment">// timeout = last arg</span></span><br><span class="line">    <span class="keyword">let</span> <span class="variable">name</span>: <span class="type">String</span> = args.<span class="title function_ invoke__">remove</span>(<span class="number">0</span>)?;                <span class="comment">// datasource name</span></span><br><span class="line">    <span class="keyword">let</span> <span class="variable">uid</span>: <span class="type">String</span> = args.<span class="title function_ invoke__">remove</span>(<span class="number">0</span>)?;                 <span class="comment">// request uid</span></span><br><span class="line">    args.<span class="title function_ invoke__">remove_index</span>(<span class="number">0</span>); <span class="comment">// &lt;-- leftover, see §3</span></span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(CallArgs &#123; name, uid, args, timeout &#125;)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This is the body of the <code>FromLuaMulti</code> implementation for <code>CallArgs</code> — the trait that converts a list of Lua values into one Rust value. It peels arguments off the front and the back: the timeout is last, the datasource name and the request uid are first. The last line is a leftover from before the request-uid slot existed, and it shows the fragility of an implicit positional convention across a language boundary: the client sees <code>[name, uid, ...args, timeout]</code>, so <code>remove_index(0)</code> throws away the <strong>first real argument</strong> — and panics outright for a zero-argument datasource.</p>
+<h2 id="Where-the-boundaries-actually-are"><a href="#Where-the-boundaries-actually-are" class="headerlink" title="Where the boundaries actually are"></a>Where the boundaries actually are</h2><p>The boundary is not “metrics versus commands”. It is <strong>who owns the transport</strong>:</p>
+<ul>
+<li>The <strong>agent</strong> serves <code>filesystem</code>, <code>cpu_usage</code>, <code>memory_usage</code>, <code>swap_usage</code>, <code>iops_usage</code>, <code>diskus</code>, <code>io_counters</code>, <code>host_basic</code>, <code>os_info</code>, <code>check_dir</code>, <code>read_file</code>, <code>write_file</code>, <code>mkdir</code>, <code>shell</code>, <code>ping</code>, <code>watch_log</code>/<code>unwatch_log</code>.</li>
+<li>The <strong>host</strong> schema serves only <code>read_file</code>, <code>upload</code>, <code>shell</code>, <code>ping</code> — because that is all SSH can give you. It has no <code>filesystem</code> and no <code>diskus</code>, which is why <code>host.lua</code> re-implements <code>df -Pk</code> parsing in Lua while the agent path calls a native <code>agent:filesystem(10)</code>.</li>
+<li>The <strong>database</strong> schema serves <code>query</code>, <code>update</code>, <code>test</code>, <code>clean_sql_conditions</code> — one generic SQL verb, and <em>all</em> the vendor semantics (AWR, <code>v$session</code>, InnoDB metrics) live in the Lua tasks on the collector side. The service only knows how to run SQL and hand back rows.</li>
+</ul>
+<p>So the interesting logic is in the scripts, and the services are mechanism. That split is what makes it possible to add a metric for a database that has a driver but no new service code, and to add a whole new transport without touching a single task.</p>
+<h2 id="Failure-handling"><a href="#Failure-handling" class="headerlink" title="Failure handling"></a>Failure handling</h2><p><strong>Service down.</strong> <code>SchemaClient::connect</code> fails with a typed error. The instance stays registered, <code>session:find_schema</code> returns <code>connection_refused</code>, <code>match_schema</code> simply does not fire the callback, and <code>session:schema_error()</code> reports the code. A monitor timer checks the connection state every 40 seconds, re-dials, and publishes the instance’s state to Riemann.</p>
+<p><strong>Timeout.</strong> The client sends <code>timeout - 1</code> on the wire, so the callee fails one second <em>before</em> the caller’s own deadline. That small trick avoids the classic deadlock where both sides time out simultaneously and nobody knows why. The server enforces it, the agent wraps <code>cmd.output()</code> in a timeout, and the Java <code>ShellDataSource</code> polls the SSH channel until the deadline and throws.</p>
+<p><strong>Errors are data.</strong> A wire error carries a typed code — the code is <code>base | (index &lt;&lt; 8)</code>, with ten bases and about sixty named codes. Lua translates them into ten business codes, and the health-check helper turns a failure into a <em>metric row</em>: <code>request:commit(&#123; metric = handler_error_code(resp.code), message = resp.msg &#125;)</code>.</p>
+<p>A monitoring system needs its own failures to be monitorable, so a failed collection is a data point, not an exception that vanishes.</p>
+<p><strong>A broken pipe fans out.</strong> The reader task marks the client closed and pushes the error into every pending request channel, so no caller hangs waiting for a reply that can never arrive.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>Process isolation buys dependency isolation and costs a network hop.</strong> The agent needs <code>heim</code>/<code>diskus</code>; the database service needs four JDBC drivers; neither pollutes the other, and a JVM crash in JDBC code cannot take the collector down. The price is a round trip and a second runtime per hop.</p>
+<p><strong>One protocol, many languages is a permanent drift risk.</strong> The frame format, the state machine and the error codes are implemented twice — once in Rust, once in Java — and documented in <code>doc/src/protocol/</code> rather than only in code. The benefit is that a new service can be written in any language with a ~500-line codec, and the collector never learns what is on the other end.</p>
+<p><strong>The same binary must speak both roles.</strong> <code>bee-codec</code> has <code>client</code> and <code>server</code> features and the collector uses both. The agent does too — it serves the <code>agent</code> schema <em>and</em> connects back to the collector’s <code>bee</code> schema to pull log-watch targets. One implementation of framing, one of error mapping, one of the request-id demultiplexer — and one place where a bug hits both directions.</p>
+<p><strong>The client is not the server, and the client is the one with a bug.</strong> The <code>remove_index(0)</code> leftover above is the kind of defect that only appears when the two halves of a positional convention drift apart.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Name the argument convention, or use a table.</strong> <code>oracle:query(sql, 20)</code> with a trailing timeout is compact and completely implicit. A named form (<code>query&#123; sql = ..., timeout = 20 &#125;</code>) would have made the leftover line impossible to write and the failure mode obvious.</p>
+<p><strong>Put the argument validation where the signature is.</strong> The connect handshake already advertises <code>name → Vec&lt;DataType&gt;</code>; the client should reject a bad call <em>before</em> it becomes a wire request, with a message that names the argument.</p>
+<p><strong>Let the service own the semantics it is uniquely able to own.</strong> The database service already knows how to speak JDBC; letting it also own the “give me the current sessions for this instance” query would move work off the collector and shorten the round trip for the metrics that matter most. The rule “policy in the script, mechanism in the service” is right, but the line between those two is worth drawing per datasource rather than globally.</p>
+<p><strong>Version the protocol in the handshake.</strong> <code>ConnectResp::Ok</code> carries a <code>version</code> field, and the client checks it — but the frames themselves are not versioned, so an old service and a new collector can disagree about a payload and only find out at runtime.</p>
+<p><strong>And keep the byte-stream escape hatch.</strong> It is the reason the protocol never needed a schema registry, and it is the reason adding a new kind of service — a log shipper, a metrics bridge, a GPU host — is a 500-line job rather than a negotiation.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/tokio-rs/tokio">tokio</a> — the Rust runtime the collector runs on</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/sshj/sshj">sshj</a> — the Java SSH library behind the <code>host</code> service</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/heim/latest/heim/">heim</a> and <a target="_blank" rel="noopener" href="https://docs.rs/diskus/latest/diskus/">diskus</a> — the crates the native agent reads the machine with</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/mlua/latest/mlua/">mlua</a> — the Rust binding that runs the Lua tasks</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/riemann/riemann">riemann</a> — the time-series database the metrics go to</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/bytes/latest/bytes/">bytes</a> — the byte-buffer crate behind the <code>Bytes</code> escape hatch</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">SSH Transport Layer (RFC 4253)</a> — the protocol the <code>host</code> service speaks</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-topology"><span class="toc-number">2.</span> <span class="toc-text">The topology</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-wire-protocol"><span class="toc-number">3.</span> <span class="toc-text">The wire protocol</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-connect-handshake-negotiates-the-signature"><span class="toc-number">3.1.</span> <span class="toc-text">The connect handshake negotiates the signature</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Rows-are-streamed-never-buffered"><span class="toc-number">3.2.</span> <span class="toc-text">Rows are streamed, never buffered</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Calling-a-service-from-Lua"><span class="toc-number">4.</span> <span class="toc-text">Calling a service from Lua</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Where-the-boundaries-actually-are"><span class="toc-number">5.</span> <span class="toc-text">Where the boundaries actually are</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-handling"><span class="toc-number">6.</span> <span class="toc-text">Failure handling</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">7.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">8.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">9.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

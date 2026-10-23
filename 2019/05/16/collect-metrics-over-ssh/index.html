@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Zero-install collection over the one protocol every machine already speaks — and what parsing human output really costs">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Collect Metrics from a Remote Host over SSH">
+<meta property="og:url" content="http://shawhuang.com/2019/05/16/collect-metrics-over-ssh/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Zero-install collection over the one protocol every machine already speaks — and what parsing human output really costs">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2019-05-16T12:21:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T02:10:06.454Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Collect Metrics from a Remote Host over SSH</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2020/05/08/nirvana-scrape/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2018/06/14/ridf-reader-sdk/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-problem"><span class="toc-number">1.</span> <span class="toc-text">The problem</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-shape-of-the-solution"><span class="toc-number">2.</span> <span class="toc-text">The shape of the solution</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-1-%E2%80%94-how-do-you-know-where-the-command%E2%80%99s-output-ends"><span class="toc-number">3.</span> <span class="toc-text">Part 1 — how do you know where the command’s output ends?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-2-%E2%80%94-how-do-you-find-the-right-column-when-the-language-changes"><span class="toc-number">4.</span> <span class="toc-text">Part 2 — how do you find the right column when the language changes?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-3-%E2%80%94-the-same-metric-four-different-layouts"><span class="toc-number">5.</span> <span class="toc-text">Part 3 — the same metric, four different layouts</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-4-%E2%80%94-the-better-pattern-in-Perl"><span class="toc-number">6.</span> <span class="toc-text">Part 4 — the better pattern, in Perl</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-whole-flow"><span class="toc-number">7.</span> <span class="toc-text">The whole flow</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-it-costs"><span class="toc-number">8.</span> <span class="toc-text">What it costs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">9.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">10.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Collect Metrics from a Remote Host over SSH
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2019-05-16T12:21:00.000Z" itemprop="datePublished">2019-05-16</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p><strong>What this post is about.</strong> A monitoring collector has to read ordinary numbers off someone else’s Linux box — CPU usage, memory, disk, swap — and it is not allowed to install anything on that box. This is how we did it, over SSH, and what it cost.</p>
+<p><strong>What you need to know first.</strong> SSH is just a remote shell. If you can <code>ssh user@host</code> and run <code>free -m</code>, you have everything this post needs. No protocol internals, no agent, no daemon.</p>
+<h2 id="The-problem"><a href="#The-problem" class="headerlink" title="The problem"></a>The problem</h2><p>Three things make SSH collection harder than it sounds.</p>
+<p><strong>The customer will not install your software.</strong> A daemon on their machine means a version to deploy, a service to secure, and something to blame when it breaks. SSH needs nothing: the customer already has an SSH server, and the credentials are the ones they gave you for support.</p>
+<p><strong>Every operating system prints differently.</strong> Linux, Solaris, HP-UX, AIX and Windows all have a <code>free</code>-like command, and none of them agree on the layout.</p>
+<p><strong>Every user has a different language.</strong> A Chinese-locale <code>df</code> prints <code>文件系统</code> and <code>已用</code>, not <code>Filesystem</code> and <code>Used</code>. A parser that hardcodes column positions breaks the first time it meets a machine it was not tested on.</p>
+<h2 id="The-shape-of-the-solution"><a href="#The-shape-of-the-solution" class="headerlink" title="The shape of the solution"></a>The shape of the solution</h2><p>For each metric we run one command on the remote host, read its output, and turn it into a number. The parts that need care are the three below: framing the output, finding the right column, and handling each platform’s layout.</p>
+<h2 id="Part-1-—-how-do-you-know-where-the-command’s-output-ends"><a href="#Part-1-—-how-do-you-know-where-the-command’s-output-ends" class="headerlink" title="Part 1 — how do you know where the command’s output ends?"></a>Part 1 — how do you know where the command’s output ends?</h2><p>Here is the problem in its raw form. When you run a command over SSH, what comes back is not just the command’s output. The shell also echoes back everything you typed, and there is no marker saying “the output starts here”.</p>
+<p>The fix is to bracket the command with two sentinels built from a unique id, and to pad the command with empty echoes so the shell’s own echo of the input cannot corrupt them:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">builder.append(<span class="string">&quot;echo &#x27;&quot;</span> + uid + <span class="string">&quot;x&#x27;;&quot;</span>);   <span class="comment">// start marker</span></span><br><span class="line">builder.append(<span class="string">&quot;echo &#x27;&#x27;;&quot;</span>);                <span class="comment">// keep the echo out of the way</span></span><br><span class="line">builder.append(cmd + <span class="string">&quot;;&quot;</span>);                 <span class="comment">// the actual command</span></span><br><span class="line">builder.append(<span class="string">&quot;echo &#x27;&#x27;;&quot;</span>);</span><br><span class="line">builder.append(<span class="string">&quot;echo &#x27;x&quot;</span> + uid + <span class="string">&quot;&#x27;;&quot;</span>);    <span class="comment">// end marker</span></span><br></pre></td></tr></table></figure>
+
+<p>That is the whole trick, in five lines. The remote shell prints:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">&lt;uid&gt;x</span><br><span class="line">free total used free shared buff/cache available</span><br><span class="line">...</span><br><span class="line">x&lt;uid&gt;</span><br></pre></td></tr></table></figure>
+
+<p>and the reader stops at the closing marker. The two <code>echo &#39;&#39;</code> lines are the part people miss — without them, the shell’s echo of the typed command would land in the middle of the output and the markers would no longer match. The <code>uid</code> also means two collections running against the same host at the same time cannot mix up each other’s output.</p>
+<p>Reading the result is a poll, not a blocking read, because a shell that never prints the closing marker would hang the reader forever:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> String <span class="title function_">readInput</span><span class="params">(String uid, InputStream stream, <span class="type">long</span> timeout, <span class="type">long</span> waitInterval)</span> &#123;</span><br><span class="line">    Thread.sleep(waitInterval);</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">while</span> (time &lt;= timeout - waitInterval) &#123;</span><br></pre></td></tr></table></figure>
+
+<p>The <code>wait_interval</code> (300 ms by default) is how often we check for new output; the timeout is enforced by the loop condition rather than by the SSH layer.</p>
+<p>One more implementation detail: we keep a <strong>pool of open shells</strong>. Opening a fresh SSH session per metric would be absurd, so a command borrows a shell and returns it when it is done — including when it fails.</p>
+<h2 id="Part-2-—-how-do-you-find-the-right-column-when-the-language-changes"><a href="#Part-2-—-how-do-you-find-the-right-column-when-the-language-changes" class="headerlink" title="Part 2 — how do you find the right column when the language changes?"></a>Part 2 — how do you find the right column when the language changes?</h2><p>This is the part I would point at first, because it is the difference between a parser that works and one that works on the machine you developed on.</p>
+<p>Instead of hardcoding “column 2 is the filesystem name”, we read the <strong>header line</strong> of the output, build a map from column name to column number, and then look up each column by name — trying every spelling it might have:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> <span class="built_in">string</span>.<span class="built_in">match</span>(line, <span class="string">&quot;Filesystem&quot;</span>) <span class="keyword">or</span> <span class="built_in">string</span>.<span class="built_in">match</span>(line, <span class="string">&quot;文件系统&quot;</span>) <span class="keyword">then</span></span><br><span class="line">    <span class="keyword">local</span> cols = split_space(line);</span><br><span class="line">    <span class="keyword">for</span> index, title <span class="keyword">in</span> <span class="built_in">ipairs</span>(cols) <span class="keyword">do</span> titles[title] = index; <span class="keyword">end</span></span><br><span class="line">    has_cols = <span class="literal">true</span>;</span><br><span class="line"><span class="keyword">end</span></span><br><span class="line">...</span><br><span class="line">    <span class="keyword">local</span> used_index  = get_value(titles[<span class="string">&quot;used&quot;</span>], titles[<span class="string">&quot;Used&quot;</span>], titles[<span class="string">&quot;已用&quot;</span>]);</span><br><span class="line">    <span class="keyword">local</span> avail_index = get_value(titles[<span class="string">&quot;Available&quot;</span>], titles[<span class="string">&quot;avail&quot;</span>], titles[<span class="string">&quot;可用&quot;</span>]);</span><br></pre></td></tr></table></figure>
+
+<p>The first part finds the header line — in either language — and remembers which column number each title sits in. The second part looks up a column by name, trying the English spelling and the Chinese one. <code>get_value</code> returns the first spelling it finds, so the same code works on either.</p>
+<p>The command is <code>df -Pk</code>, and both flags matter. <code>-P</code> forces the POSIX output format (one line per filesystem, no wrapping) and <code>-k</code> makes the unit 1024-byte blocks, so converting to bytes is a single multiplication instead of guessing whether the numbers are in 512-byte or 1K blocks.</p>
+<h2 id="Part-3-—-the-same-metric-four-different-layouts"><a href="#Part-3-—-the-same-metric-four-different-layouts" class="headerlink" title="Part 3 — the same metric, four different layouts"></a>Part 3 — the same metric, four different layouts</h2><p><code>vmstat</code> is the classic example of a command whose columns move between platforms. On Linux the row ends with <code>us sy id wa st</code>; on Solaris and HP-UX it ends with <code>us sy id</code>; AIX has yet another layout. So the parser has a branch per platform, and — this is the useful trick — it addresses the columns <strong>from the end of the line</strong>, because the leading columns differ wildly but the CPU columns are the ones we want:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">-- Linux:   ... us sy id wa st</span></span><br><span class="line"><span class="keyword">if</span> os_type == <span class="string">&quot;linux&quot;</span> <span class="keyword">then</span></span><br><span class="line">    rs.idleCpuTime   = <span class="built_in">tonumber</span>(values[#values - <span class="number">2</span>])</span><br><span class="line">    rs.userCpuTime   = <span class="built_in">tonumber</span>(values[#values - <span class="number">4</span>])</span><br><span class="line">    rs.systemCpuTime = <span class="built_in">tonumber</span>(values[#values - <span class="number">3</span>])</span><br><span class="line">    rs.ioWaitCpuTime = <span class="built_in">tonumber</span>(values[#values - <span class="number">1</span>])</span><br><span class="line"><span class="comment">-- Solaris &amp; HP-UX:  ... us sy id</span></span><br><span class="line"><span class="keyword">elseif</span> os_type == <span class="string">&quot;solaris&quot;</span> <span class="keyword">or</span> os_type == <span class="string">&quot;hpux&quot;</span> <span class="keyword">then</span></span><br></pre></td></tr></table></figure>
+
+<p>The command is <code>vmstat 1 2</code>. The first sample is the average since boot; the second is one second later. We want the second one, and we find it by locating the header line (the one containing <code>buff</code> on Linux) and taking the line after it. It is not elegant, and it is exactly the kind of thing that breaks on the next platform.</p>
+<p>When we meet a platform we do not support, we say so instead of guessing:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">else</span></span><br><span class="line">    request:<span class="built_in">error</span>(INVALID_NOT_SUPPORT, <span class="string">&quot;can&#x27;t support os[&quot;</span> .. os_type .. <span class="string">&quot;] for task[host_cpu]&quot;</span>);</span><br><span class="line">    <span class="keyword">return</span>;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<h2 id="Part-4-—-the-better-pattern-in-Perl"><a href="#Part-4-—-the-better-pattern-in-Perl" class="headerlink" title="Part 4 — the better pattern, in Perl"></a>Part 4 — the better pattern, in Perl</h2><p>Some metrics were not worth parsing in Lua, so they moved into small Perl scripts. The pattern there is <em>better</em> than the shell-scraping one, and it is the direction the whole design should have gone.</p>
+<p>The script prints a <strong>fixed, machine-readable header</strong> and then rows:</p>
+<figure class="highlight perl"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">print</span> <span class="string">&quot;MEMORY_ALL,MEMORY_USED,MEMORY_FREE,LP_SIZE,LP_COUNT,LP_ADVISE\n&quot;</span>;</span><br></pre></td></tr></table></figure>
+
+<p>and it branches per platform internally: on Linux it reads <code>/proc/meminfo</code> plus <code>free -m</code> plus <code>ipcs -m</code> (for shared memory); on AIX it uses <code>svmon</code>; on Solaris, <code>prtconf</code> and <code>vmstat</code>; on HP-UX, <code>swapinfo</code>; on Windows, WMIC. It also subtracts huge-page usage and adds Oracle’s shared segments to “used”, because a database server’s memory is not the same story as a web server’s.</p>
+<p>The changelog at the top of that file is a good illustration of the cost of this approach. Over two months it records: “LP_COUNT is null in MSWin32”, “ipcs -m may be larger than memory”, “Set result file to encoding UTF8”, “Set fixed path [/usr/sbin]”. Every entry is a platform surprise.</p>
+<h2 id="The-whole-flow"><a href="#The-whole-flow" class="headerlink" title="The whole flow"></a>The whole flow</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line">collector</span><br><span class="line">    │  ① borrow an SSH shell (kept alive, keep-alive configured)</span><br><span class="line">    ▼</span><br><span class="line">┌───────────────┐  ② write:                ┌──────────────────────────┐</span><br><span class="line">│  shell pool   │ ──────────────────────► │  remote host             │</span><br><span class="line">│               │    echo &#x27;&lt;uid&gt;x&#x27;;        │    export ...;           │</span><br><span class="line">│               │    echo &#x27;&#x27;;              │    echo &#x27;&lt;uid&gt;x&#x27;;        │</span><br><span class="line">│               │    &lt;the command&gt;;        │    echo &#x27;&#x27;;              │</span><br><span class="line">│               │    echo &#x27;&#x27;;              │    &lt;the command&#x27;s output&gt;│</span><br><span class="line">│               │    echo &#x27;x&lt;uid&gt;&#x27;;        │    echo &#x27;&#x27;;              │</span><br><span class="line">│               │ ──────────────────────► │    echo &#x27;x&lt;uid&gt;&#x27;;        │</span><br><span class="line">│               │  ③ read until &#x27;x&lt;uid&gt;&#x27;  └──────────────────────────┘</span><br><span class="line">│  ④ parse the text into a metric row</span><br><span class="line">└───────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>The shape to notice: <strong>one SSH round trip per metric</strong>. A host reporting CPU, memory, swap, filesystem and IOPS is five round trips, and the collector holds one shell open per host while it does them.</p>
+<p>That is the cost the whole approach is built on, and it is why the project later grew a second path: a small native agent running on the host that answers the same questions over the collector’s own binary protocol. The agent reads the numbers directly (no text parsing, no locale, no <code>vmstat</code>). The SSH path stayed as the fallback for hosts where nothing can be installed.</p>
+<h2 id="What-it-costs"><a href="#What-it-costs" class="headerlink" title="What it costs"></a>What it costs</h2><p><strong>A round trip per metric.</strong> Two hundred hosts reporting five numbers every thirty seconds is a thousand SSH command executions per interval. Pooling the shells makes the <em>connection</em> cheap; it does nothing for the <em>latency</em>.</p>
+<p><strong>Parsing human output is a permanent liability.</strong> The <code>df</code> header lookup survives a language change; it does not survive a <code>df</code> that renames a column. The <code>vmstat</code> offsets survive a version bump; they do not survive a platform whose header says something else.</p>
+<p><strong>The two collection paths can disagree.</strong> On the agent path, “total size” is the real filesystem total. On the SSH path it is <code>free + used</code>, which leaves out blocks the filesystem reserves — so the same disk reports a different size depending on how you asked. The metric name does not say which.</p>
+<p><strong>“Free” and “used” are only defensible if you define them once.</strong> The Perl script counts the page cache as free and adds Oracle’s shared segments to used; <code>free -m</code> counts the page cache as used. Both are reasonable. They are not the same number, and a dashboard that mixes them is lying.</p>
+<p><strong>Building the command by string concatenation is a shell-injection surface.</strong> The environment is quoted (<code>export KEY=&#39;value&#39;;</code>), but the command itself is assembled as text and handed to a shell.</p>
+<p><strong>There is a latency floor.</strong> We sleep briefly before reading, then poll. Every command costs a few hundred milliseconds of latency no matter how fast the remote command is.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Return numbers, not text.</strong> The Perl scripts already do the right thing — a fixed header and machine-readable rows. The Lua tasks that scrape <code>df</code> and <code>vmstat</code> should have been written the same way. The rule: if you must run something on the remote host, make it print a format <em>you</em> define, and treat the output of <code>df</code> or <code>vmstat</code> as an implementation detail of that script rather than of your protocol.</p>
+<p><strong>Batch the commands.</strong> Nothing requires one round trip per metric. The marker approach generalises: run several commands in one shell invocation, each with its own pair of markers, and parse the sections. Five metrics become one round trip.</p>
+<p><strong>Make the column mapping table-driven.</strong> The per-platform <code>values[#values - N]</code> arithmetic is the part most likely to be wrong on a platform nobody tested. A table from platform to field positions, plus a test that runs the parser against a recorded sample of each platform’s output, turns a class of silent misreporting into a test failure.</p>
+<p><strong>Say which definition you are publishing.</strong> “Total size” should be either the filesystem’s real total or explicitly <code>free + used</code> — and the metric name should say which.</p>
+<p><strong>And keep pushing the agent.</strong> SSH is right for a customer who will not install anything, and it is fine to keep as a fallback. But it is the exception, not the default. The interesting question is not “how do we parse <code>df</code>“ but “how do we know when a host is worth installing an agent on”.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">SSH Transport Layer (RFC 4253)</a> — the protocol the whole approach rides on</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4252.html">SSH Authentication (RFC 4252)</a> — how the collector authenticates</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/sshj/sshj">sshj</a> — the Java SSH library the host schema uses</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/rxtx/rxtx">RXTX</a> — the serial-port library behind the RXTX channel</li>
+<li><a target="_blank" rel="noopener" href="https://netty.io/">Netty</a> — the networking framework the collector’s RPC layer is built on</li>
+<li><a target="_blank" rel="noopener" href="https://www.perl.org/">Perl</a> — the language the per-platform helper scripts are written in</li>
+<li><a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man1/df.1.html"><code>df(1)</code></a> and <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man8/vmstat.8.html"><code>vmstat(8)</code></a> — the two commands this post parses</li>
+<li><a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man1/free.1.html"><code>free(1)</code></a> and <a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man1/iostat.1.html"><code>iostat(1)</code></a> — the other two</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/heim/latest/heim/"><code>heim</code></a> and <a target="_blank" rel="noopener" href="https://docs.rs/diskus/latest/diskus/"><code>diskus</code></a> — the Rust crates the native agent replaced the shell with</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-problem"><span class="toc-number">1.</span> <span class="toc-text">The problem</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-shape-of-the-solution"><span class="toc-number">2.</span> <span class="toc-text">The shape of the solution</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-1-%E2%80%94-how-do-you-know-where-the-command%E2%80%99s-output-ends"><span class="toc-number">3.</span> <span class="toc-text">Part 1 — how do you know where the command’s output ends?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-2-%E2%80%94-how-do-you-find-the-right-column-when-the-language-changes"><span class="toc-number">4.</span> <span class="toc-text">Part 2 — how do you find the right column when the language changes?</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-3-%E2%80%94-the-same-metric-four-different-layouts"><span class="toc-number">5.</span> <span class="toc-text">Part 3 — the same metric, four different layouts</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Part-4-%E2%80%94-the-better-pattern-in-Perl"><span class="toc-number">6.</span> <span class="toc-text">Part 4 — the better pattern, in Perl</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-whole-flow"><span class="toc-number">7.</span> <span class="toc-text">The whole flow</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-it-costs"><span class="toc-number">8.</span> <span class="toc-text">What it costs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">9.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">10.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

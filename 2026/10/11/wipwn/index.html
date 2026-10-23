@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="A phone cannot enter monitor mode, so the tool owns wpa_supplicant and drives the handshake itself. Also: what shipping an obfuscated binary costs a research project.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Speak the WPS Protocol Directly">
+<meta property="og:url" content="http://shawhuang.com/2026/10/11/wipwn/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="A phone cannot enter monitor mode, so the tool owns wpa_supplicant and drives the handshake itself. Also: what shipping an obfuscated binary costs a research project.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-10-11T06:27:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:53:38.601Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Speak the WPS Protocol Directly</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2026/10/22/bee/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2026/09/27/parrots/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Parsing-as-a-contract"><span class="toc-number">3.1.</span> <span class="toc-text">Parsing as a contract</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-shipped-artifact-is-not-source"><span class="toc-number">4.</span> <span class="toc-text">The shipped artifact is not source</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Speak the WPS Protocol Directly
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2026-10-11T06:27:00.000Z" itemprop="datePublished">2026-10-11</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>WPS PIN attacks have a reputation for needing a laptop, Kali, and a USB adapter in monitor mode. A phone cannot enter monitor mode, its Wi-Fi chipset is usually closed, and the operating system owns the radio.</p>
+<p><strong>What this post is about.</strong> WIPWN is my attempt to run those attacks from an Android phone in Termux anyway. It is not a reimplementation of aircrack — it is a <em>state machine</em>, a program whose behaviour is decided by what state it is in, that speaks the WPS protocol directly, through <code>wpa_supplicant</code>, over a control socket the tool opens itself. This post is partly about that, and partly about what happens when you ship an obfuscated binary.</p>
+<p><strong>What you need to know first.</strong> <em>WPS</em> is Wi-Fi Protected Setup, the button-press pairing protocol that lets a phone join a router without typing a password. It uses an eight-digit <em>PIN</em> — a setup code printed on the router — and it works by exchanging a short <em>handshake</em>, a back-and-forth message sequence that proves you know the code. <em>Monitor mode</em> is a special state a Wi-Fi adapter can be put into where it captures raw radio traffic instead of joining a network. An <em>access point</em> is the router; its <em>BSSID</em> is the router’s hardware address, a six-byte identifier for its radio. Termux is a terminal emulator for Android, and Kali is the penetration-testing Linux distribution that these attacks are usually run from. None of this requires you to have used any of it before; I define each term the first time it matters.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The constraint that shapes everything is: <strong>no monitor mode</strong>.</p>
+<p>The usual attack flow is: put the adapter in monitor mode, capture the <code>M1</code>/<code>M2</code> handshake messages, feed them to <code>pixiewps</code>, which computes the <code>M2</code> from the nonces in <code>M1</code> — a <em>nonce</em> is a random number the exchange starts with — and with a matching <code>M2</code> the access point hands you the PIN. Pixie Dust does this in seconds on vulnerable chips, and succeeds maybe 10–20 % of the time. The rest of the time you <em>brute-force</em> the PIN — try every candidate until one works — and the PIN is a 8-digit number with a known checksum, so it splits into a 4-digit half and a 3-digit half plus a check digit.</p>
+<p>None of that needs monitor mode <em>if</em> the machine running the attack is also the one talking to the access point through <code>wpa_supplicant</code>. And that is the key realization: on Android, <code>wpa_supplicant</code> is the only handle you have on the radio. It is the <em>daemon</em> — a background program — that owns the Wi-Fi interface and speaks the protocol on the operating system’s behalf. A <em>control socket</em> is the local network endpoint it listens on for commands.</p>
+<p>So the tool owns <code>wpa_supplicant</code>.</p>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><p><strong>The tool starts and configures <code>wpa_supplicant</code> itself.</strong> Not <code>wpa_cli</code>, not the OS Wi-Fi API — the daemon, in WPS mode, with its control socket open, so the tool can drive the <code>M1</code>/<code>M2</code> exchange directly:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># consts: &#x27;wpa_supplicant -K -d -Dnl80211,wext,hostapd,wired -i&#123;&#125; -c&#123;&#125;&#x27;</span></span><br><span class="line"><span class="comment">#         &#x27; wpa_supplicant returned an error: &#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>The command line above is the daemon’s: <code>-i</code> names the wireless interface, <code>-c</code> points at a configuration file, and <code>-K</code> keeps the control socket for privileged commands. The tool speaks <code>sendOnly</code>/<code>sendAndReceive</code> over that socket, performs the WPS handshake, and rotates the source MAC per attempt — a <em>MAC</em> is the hardware address of a network card, and changing it makes the tool look like a different device, so a locked-out access point sees a new one each time.</p>
+<p><strong>Android’s radio has to be taken out of the way.</strong> The OS Wi-Fi stack and <code>wpa_supplicant</code> cannot both own the interface, so the tool disables the OS radio and restores the previous state afterwards:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># (&#x27;settings&#x27;, &#x27;get&#x27;, &#x27;global&#x27;, &#x27;wifi_scan_always_enabled&#x27;)</span></span><br><span class="line"><span class="comment"># (&#x27;cmd&#x27;, &#x27;wifi&#x27;, &#x27;set-wifi-enabled&#x27;, &#x27;disabled&#x27;)</span></span><br></pre></td></tr></table></figure>
+
+<p>These are Android shell commands rather than Python calls: the first reads a global setting, the second turns the radio off. The <code>wifi_scan_always_enabled</code> read exists because disabling the radio also kills background scanning, and the tool has to put it back.</p>
+<p><strong>Both attack modes are first-class.</strong> Pixie Dust is fast but unreliable; brute force is reliable but slow and the access point locks after N consecutive failures. Treating the first as the primary and the second as a fallback would have been the wrong default, because in practice the failure rate is 80–90 %.</p>
+<p><strong>The run must survive the phone.</strong> A brute-force attempt takes hours, the access point locks, the phone runs out of battery, Termux gets killed. So the tool persists progress — <code>last_pin_tried</code>, attempts, per-BSSID statistics — in JSON under <code>~/.Wipwn/sessions/</code>, and can resume.</p>
+<p><strong>The tool assumes the access point is rate-limiting by design.</strong> WPS lockout is a specification feature, not a bug, so the attack has to live with it:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># consts: &#x27;consecutive_failures&#x27;, &#x27;timeout&#x27;, &#x27;consecutive_timeouts&#x27;,</span></span><br><span class="line"><span class="comment">#         &#x27; Multiple consecutive timeouts detected&#x27;, &#x27; Increasing timeout to &#x27;,</span></span><br><span class="line"><span class="comment">#         &#x27;nack&#x27;, &#x27;lock&#x27;, &#x27;lock_detected&#x27;, &#x27; AP has locked WPS - waiting &#x27;,</span></span><br><span class="line"><span class="comment">#         &#x27; AP locked but ignore-locks enabled&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>These are the literal strings the failure handler looks for. The handler distinguishes a timeout from a NACK — the access point’s explicit “no” to a PIN — from a lock, escalates the timeout after repeated timeouts, and waits out a lock instead of hammering.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><p>The layers, from the inside out:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>Companion</code></td>
+<td>The engine: owns <code>wpa_supplicant</code>, performs the WPS M1/M2 exchange, PBC and PIN modes, two-half brute force, per-attempt MAC rotation</td>
+</tr>
+<tr>
+<td><code>PixiewpsExtendedModule</code></td>
+<td>Wraps the <code>pixiewps</code> binary: pixie dust, brute force, hybrid, auto-detect, output parsing</td>
+</tr>
+<tr>
+<td><code>WPSpin</code></td>
+<td>PIN algebra: ~50 vendor-specific generators (Zyxel, TPLink, Huawei, DLink, ASUS, Netgear, Xiaomi), checksum, suggested-pin computation</td>
+</tr>
+<tr>
+<td><code>ManagedModeWPSScanner</code></td>
+<td><code>iw scan</code> parsing → SSID/BSSID/WPS flags/signal, vendor fingerprinting, session save/load</td>
+</tr>
+<tr>
+<td><code>OnlineBruteforcer</code></td>
+<td>Thread-pool PIN testing, driven straight at <code>wpa_supplicant</code></td>
+</tr>
+<tr>
+<td><code>RateLimitBypass</code></td>
+<td>Detects AP lockout, then MAC spoofing / channel hopping / timing</td>
+</tr>
+<tr>
+<td><code>SessionResumeManager</code></td>
+<td>JSON session state so a run can continue</td>
+</tr>
+<tr>
+<td><code>AndroidNetwork</code></td>
+<td>Termux-specific radio management</td>
+</tr>
+</tbody></table>
+<p>The PIN generator table is worth a sentence on its own. WPS PINs are not random per vendor: each manufacturer encodes information about the device into the pin (often derived from the MAC address) into the first four digits. With ~50 generators and a 7,227-entry pin/OUI table — an <em>OUI</em> being the first half of a hardware address, which names the manufacturer — the “suggested PIN” path turns a 10,000-attempt search into a handful.</p>
+<h3 id="Parsing-as-a-contract"><a href="#Parsing-as-a-contract" class="headerlink" title="Parsing as a contract"></a>Parsing as a contract</h3><p><code>pixiewps</code> is a separate binary with its own output format, and the tool has to survive its variations:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># PIN regexes:  (\bPIN[:\s]+([0-9]&#123;8&#125;), (\[PIN\]\s+([0-9]&#123;8&#125;), PIN:\s*(\d&#123;8&#125;), Found\s+PIN:\s+(\d&#123;8&#125;))</span></span><br><span class="line"><span class="comment"># PSK regexes:  (\bPSK[:\s]+([^\n\r]+), Password[:\s]+([^\n\r]+), key:\s*([^\n\r]+))</span></span><br><span class="line"><span class="comment"># failure reasons: &#x27;not enough data to run pixie dust attack&#x27;, &#x27;wpa_supplicant returned wps-fail&#x27;, &#x27;wps-fail&#x27;</span></span><br></pre></td></tr></table></figure>
+
+<p>A <em>regular expression</em>, or regex, is a small pattern language for “find text that looks like this”; each of these patterns matches a different spelling of a PIN or a password in the output. Treating a subprocess’s stdout as a contract — a set of documented shapes plus a set of known failure strings — is the minimum viable way to integrate an external tool whose error handling you do not control.</p>
+<h2 id="The-shipped-artifact-is-not-source"><a href="#The-shipped-artifact-is-not-source" class="headerlink" title="The shipped artifact is not source"></a>The shipped artifact is not source</h2><p>Here is the part I would not have predicted when I started this project.</p>
+<p>The repository’s <code>main.py</code> is a 49-line loader. The real program is a ~470 KB marshalled code object, unpacked through several layers:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">hd0OtAwLWb_result = hd0OtAwLWb(d3P3zemw15W)</span><br><span class="line">bd6_r3j1pUjd9_1 = bd6_r3j1pUjd9(hd0OtAwLWb_result)</span><br><span class="line">bd6_r3j1pUjd9_2 = bd6_r3j1pUjd9(bd6_r3j1pUjd9_1)</span><br><span class="line">roDmpzqLnz_result = roDmpzqLnz(bd6_r3j1pUjd9_2, rauE1dZgHhG)</span><br><span class="line">xc40x787JUwZEYV_2_dec = xc40x787JUwZEYV(roDmpzqLnz_result, kfkJoemh8J2aNyxK)</span><br><span class="line">&#123; ... &#125;</span><br><span class="line">exzrHneOeU12 = marshal.loads(xc40x787JUwZEYV_1_dec)</span><br><span class="line"><span class="built_in">exec</span>(exzrHneOeU12)</span><br></pre></td></tr></table></figure>
+
+<p>Each line calls a function with a scrambled name and a scrambled argument, and each function peels off one layer. The <code>&#123; ... &#125;</code> hides two more of the same shape. Decoding the chain — hex, base64 twice, ROT-23, XOR, zlib, XOR, <code>marshal.loads</code>, <code>exec</code> — is a twenty-minute exercise, and I want to be explicit about that, because it is the whole argument. <strong>If you publish a security tool for study, obfuscation buys you nothing that a straight source release does not buy you more cheaply.</strong></p>
+<p>For what those names mean: hex and base64 are ways of writing bytes as text; ROT-23 shifts each letter of the alphabet by 23 places; XOR is a bitwise operation that combines two byte strings and is its own inverse, so the same key both scrambles and unscrambles; zlib is a compression library; <code>marshal.loads</code> turns Python’s own serialised form back into a code object; and <code>exec</code> runs it.</p>
+<p>What the obfuscation actually costs:</p>
+<ul>
+<li><strong>It is unauditable.</strong> A reader cannot check what the tool does to their phone. The upstream community this project depends on — <code>pixiewps</code>, <code>wpa_supplicant</code>, Termux packaging — cannot audit a dependency they do not maintain.</li>
+<li><strong>It breaks reproducibility.</strong> The payload only loads under CPython 3.14 — CPython being the standard Python interpreter. On 3.9, 3.11, 3.12 and 3.13 it fails with <code>bad marshal data (unknown type code)</code>. That is an interpreter pin created by an accident of the packing tool, not by a design decision.</li>
+<li><strong>Every bug report becomes a black box.</strong> “It does not work” is unanswerable when the failure is inside an opaque blob.</li>
+<li><strong>It hides the part that is actually worth reading.</strong> The PIN generator table and the WPS state machine are the interesting engineering. They are the parts a competitor most wants to copy, which is presumably the point — but it is also the part a reader most wants to learn from.</li>
+</ul>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>Running the tool’s own <code>wpa_supplicant</code> is a feature and a constraint.</strong> Owning the daemon gives complete control of the WPS exchange, but it also means the tool must deal with driver quirks, interface naming, and the platform’s own network manager. Everything shells out: <code>wpa_supplicant</code>, <code>pixiewps</code>, <code>iw</code>, <code>wpscan</code>, <code>ifconfig</code>, <code>macchanger</code>, <code>make</code>, even <code>curl</code>. No native APIs are used, so behaviour varies per platform.</p>
+<p><strong>The <code>fixroot</code> helper curls a script from a GitHub Gist and runs it with <code>bash -c</code>.</strong> A Gist is a GitHub paste page; <code>curl</code> downloads, <code>bash -c</code> runs what it downloaded. In a tool that already runs as <em>root</em> — the phone’s superuser account, which can change anything on the device — that is a supply-chain footgun: <em>supply chain</em> is the path a piece of software takes to reach you, and here part of that path is a mutable web page, so the trust boundary is a URL, not a hash. A <em>hash</em> is a short fingerprint of a file’s contents; if you can check it, you can tell whether the file you downloaded is the file you were given.</p>
+<p><strong>Three session systems coexist.</strong> <code>SessionManager</code>, <code>SessionResumeManager</code> and <code>Companion.save_session</code> each persist progress with different schemas. This is what layered accretion looks like from the inside — every layer was reasonable when it was added.</p>
+<p><strong>The repository’s surface hygiene is good.</strong> Keep-a-Changelog, SemVer from 3.0.1 to 3.3.0, MIT license, <code>--doctor</code> diagnostics, an HTML/CSV/JSON report generator, Telegram community, donation links. Someone reading only the repository would conclude it is a well-run project. The changelog is, in effect, the only readable architecture record — which is an odd thing for a project to have.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Ship the source.</strong> Not “ship the source <em>and</em> obfuscate it” — ship the source, and let the archive be the source. For a research tool, the audience that matters is the one that wants to understand how a WPS handshake is actually performed on a phone, and that audience is exactly the audience an opaque blob excludes. The copy-protection instinct is a product instinct, and this is a research project.</p>
+<p><strong>Drop <code>fixroot</code> and vendor what it fetches.</strong> A root helper should be a file in the repository whose hash the user can verify, not a <code>curl | bash</code> against a mutable gist.</p>
+<p><strong>Unify the session layer.</strong> One schema, one writer, one reader. The current arrangement guarantees that a session saved by one code path cannot be resumed by another.</p>
+<p><strong>Keep the honest diagnostics.</strong> <code>--doctor</code>, <code>--interfaces</code>, the structured failure messages and the per-attack statistics are the best parts of the project, and they are the parts that survive being open source. If anything is going to make the tool’s credibility durable, it is the fact that it tells you exactly what it did and what it refused to do.</p>
+<p><strong>Then, and only then, work on the attack engine.</strong> The protocol work — the M1/M2 exchange, the two-half brute force, the vendor PIN algebra, the lockout-aware pacing — is genuinely good, and it is the part of this project I would still be proud of in five years. It deserves to be readable.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/anbuinfosec/wipwn">WIPWN</a> — the project this post is about</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/aircrack-ng/aircrack-ng">aircrack-ng</a> — the tool suite the usual WPS attack flow is built on</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/aircrack-ng/aircrack-ng/wiki">aircrack-ng wiki</a> — background notes on the suite and its scripts</li>
+<li><a target="_blank" rel="noopener" href="https://w1.fi/">w1.fi</a> — the Wi-Fi Alliance, the body behind the WPS specification this post’s protocol work follows</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">RFC 4253</a> — the SSH transport protocol specification, a worked example of a framed request/response protocol</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Parsing-as-a-contract"><span class="toc-number">3.1.</span> <span class="toc-text">Parsing as a contract</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-shipped-artifact-is-not-source"><span class="toc-number">4.</span> <span class="toc-text">The shipped artifact is not source</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

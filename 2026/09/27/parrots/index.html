@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Cloud translation puts three to four seconds of dead air into a meeting and turns your voice into a stranger&#39;s. Parrots does it on-device, clause by clause, in your own voice.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Build a Real-Time Speech Translator">
+<meta property="og:url" content="http://shawhuang.com/2026/09/27/parrots/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Cloud translation puts three to four seconds of dead air into a meeting and turns your voice into a stranger&#39;s. Parrots does it on-device, clause by clause, in your own voice.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-09-26T23:30:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:50:11.839Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Build a Real-Time Speech Translator</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2026/10/11/wipwn/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2026/09/10/net-scan/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-design-looks-like-this"><span class="toc-number">1.</span> <span class="toc-text">Why the design looks like this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">2.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-segmenter"><span class="toc-number">2.1.</span> <span class="toc-text">The segmenter</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-audio-path"><span class="toc-number">2.2.</span> <span class="toc-text">The audio path</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Correcting-what-the-ASR-heard"><span class="toc-number">2.3.</span> <span class="toc-text">Correcting what the ASR heard</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-trait-seam"><span class="toc-number">3.</span> <span class="toc-text">The trait seam</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Build a Real-Time Speech Translator
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2026-09-26T23:30:00.000Z" itemprop="datePublished">2026-09-27</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>I built Parrots because I got tired of reading English subtitles in a meeting.</p>
+<p><strong>What this post is about.</strong> This post is about the design of Parrots, a speech translator that runs entirely on your own machine. You will see how it cuts a sentence into clauses so that you hear the translation while you are still talking, and how it makes your laptop look like a microphone to the meeting app. I will also explain where the latency budget actually went.</p>
+<p><strong>What you need to know first.</strong> Three terms carry most of the weight. A <em>speech recogniser</em> turns your voice into text. A <em>translation model</em> turns that text into the other language. A <em>text-to-speech model</em> turns the translated text back into audio. Parrots chains the three together, and everything runs on-device, so no audio leaves your computer and there is no server in the middle. The code is in Rust, a compiled language that checks its types before the program runs; you do not need to know Rust to follow this post.</p>
+<p>The scenario is specific: I speak Chinese, the other side speaks English, and the meeting app is Zoom or Teams or 腾讯会议. The existing answer is a cloud speech-to-speech translator, and it fails for two reasons at once.</p>
+<p>It fails on <strong>latency</strong>. A turn-based translator forces the conversation into a “one speaks, waits, reads” rhythm. My design notes recorded the number I refused to accept: three to four seconds of dead air after a long sentence. In a meeting that is a broken conversation, not a delay.</p>
+<p>It fails on <strong>identity</strong>. The other side hears a synthetic stranger. Turn-taking collapses, because your synthetic voice carries none of the timing cues that mark a human ending a thought.</p>
+<p>So the requirements are two constraints that pull against each other: sub-second latency, and <em>your</em> voice on the other end. Everything else in this post follows from those two.</p>
+<h2 id="Why-the-design-looks-like-this"><a href="#Why-the-design-looks-like-this" class="headerlink" title="Why the design looks like this"></a>Why the design looks like this</h2><p><strong>Everything runs on-device.</strong> No audio leaves the machine. That buys latency (no per-token network jitter on the critical path), privacy (confidential meeting content never goes to a third party), and offline use. It also constrains everything else: if it must be local, the models must be small enough to be fast, which is why the stack is SenseVoice-int8 (a small speech recogniser in 8-bit compressed form), opus-mt-int8 (a small translation model) and an optional Qwen-Q4 (a small language model) rather than anything frontier-sized.</p>
+<p><strong>Traits instead of one concrete pipeline.</strong> The design doc states the rule plainly: substitutions happen <em>under</em> the trait — opus-mt vs Qwen for translation, ZipVoice vs F5-TTS for synthesis (both text-to-speech models), whisper vs zipformer for recognition (both speech recognisers). The <code>pipeline</code> crate — a crate is Rust’s unit of packaging, one library — depends only on <code>core</code>‘s traits, never on a model.</p>
+<p>It paid off: the text polisher was later added as a new trait plus an <code>Option&lt;Arc&lt;dyn TextPolisher&gt;&gt;</code> field without restructuring the pipeline.</p>
+<p><strong>Translation starts clause by clause, not sentence by sentence.</strong> A clause is the part of a sentence between two punctuation marks. This is the core latency idea: you start hearing the translation while you are still talking.</p>
+<p><strong>A virtual audio device.</strong> This one is forced by the platform. A meeting app takes audio from a <em>named input device</em>: there is no “inject PCM here” API — PCM is raw digital audio samples — no loopback API, which would be a way of feeding a program its own output, that a third-party app may use, and screen capture is not an audio path. To be heard, Parrots must appear to Zoom as a microphone. To hear the other side, it must appear as the app’s speaker. Hence two CoreAudio HAL devices — CoreAudio is macOS’s audio system, and HAL its plug-in layer for third-party devices: <code>Parrots Microphone</code> (2 channels) and <code>Parrots Speakers</code> (16).</p>
+<p>They must be separate devices: if the translated voice and the remote voice shared one pipe, the translated voice would feed back into the captured path — a loop. The differing channel counts only keep the two names unambiguous to users and automation.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><p>The live path is three stages with different concurrency shapes:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">┌────────────────┐   512-sample chunks   ┌───────────────────┐</span><br><span class="line">│ capture thread │ ────────────────────► │ segmentation task │</span><br><span class="line">│ (blocking, VAD)│    chan depth 32      │ rolling ASR +     │</span><br><span class="line">└────────────────┘                       │ clause commit     │</span><br><span class="line">                                         └────────┬──────────┘</span><br><span class="line">                              clause chan depth 2</span><br><span class="line">                                                  ▼</span><br><span class="line">                                         worker pool (MT → TTS → sink, single consumer) ──► virtual mic / speakers</span><br></pre></td></tr></table></figure>
+
+<p>The diagram is the live audio path. The capture thread on the left fills a 32-deep queue of 512-sample chunks; VAD is voice activity detection, deciding whether someone is speaking. The segmentation task in the middle cuts that stream into finished clauses through a queue only two clauses deep, running a <em>rolling ASR</em> (automatic speech recognition re-run on the growing audio window, so partial text exists early). The worker pool on the right translates (MT, machine translation) and speaks (TTS, text-to-speech) one clause at a time, then hands the audio to the virtual microphone and speakers.</p>
+<p>The capture thread is blocking because CoreAudio callbacks are — <em>blocking</em> means the thread waits instead of handing the work elsewhere; the segmentation task is <em>async</em>, meaning it waits for a result without holding up a thread, because it waits on ASR; the worker pool has a single consumer because the TTS session is shared and cannot be used concurrently.</p>
+<h3 id="The-segmenter"><a href="#The-segmenter" class="headerlink" title="The segmenter"></a>The segmenter</h3><p>The segmenter decides where to cut the audio: a pure-logic state machine with the ASR injected as a closure — a function passed in from outside — which is why it can be unit-tested with canned text and no model files. Its thresholds are the heart of the project:</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Value</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Punctuation trigger</td>
+<td><code>。！？；，,!?;.</code> followed by more text</td>
+<td>Natural clause boundary; requires more text so trailing punctuation does not trigger</td>
+</tr>
+<tr>
+<td>Micro-pause trigger</td>
+<td>≥400 ms RMS silence</td>
+<td>The speaker paused; treat it as a boundary</td>
+</tr>
+<tr>
+<td>Min chars before a pause commit</td>
+<td>≥6 new characters</td>
+<td>Stops stray interjections from being chopped</td>
+</tr>
+<tr>
+<td>Min clause audio</td>
+<td>≥1 s</td>
+<td>Below this, the ASR is not even called</td>
+</tr>
+<tr>
+<td>Min content chars at a cut</td>
+<td>≥2 (tail ≥1)</td>
+<td>Prevents punctuation-only fragments, which cause downstream MT hallucinations</td>
+</tr>
+<tr>
+<td>Trailing punctuation</td>
+<td>never counts</td>
+<td>Rolling ASR speculatively appends a period to a partial window</td>
+</tr>
+</tbody></table>
+<p>Here are the same thresholds as the constants the code actually uses:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">const</span> MIN_CLAUSE_SAMPLES: <span class="type">usize</span> = <span class="number">16000</span>;      <span class="comment">// 1s of 16 kHz audio</span></span><br><span class="line"><span class="keyword">const</span> PAUSE_FRAME_SAMPLES: <span class="type">usize</span> = <span class="number">1600</span>;      <span class="comment">// 100ms frame</span></span><br><span class="line"><span class="keyword">const</span> PAUSE_MIN_FRAMES: <span class="type">usize</span> = <span class="number">4</span>;            <span class="comment">// 4 frames = 400ms</span></span><br><span class="line"><span class="keyword">const</span> PAUSE_SILENCE_RMS: <span class="type">f32</span> = <span class="number">0.01</span>;          <span class="comment">// silence threshold</span></span><br><span class="line"><span class="keyword">const</span> MIN_CHARS_BETWEEN_COMMITS: <span class="type">usize</span> = <span class="number">6</span>;   <span class="comment">// ignore stray interjections</span></span><br><span class="line"><span class="keyword">const</span> MIN_CLAUSE_CONTENT_CHARS: <span class="type">usize</span> = <span class="number">2</span>;    <span class="comment">// no punctuation-only clauses</span></span><br></pre></td></tr></table></figure>
+
+<p><code>MIN_CLAUSE_SAMPLES</code> is 16000 samples at 16 kHz — one second of audio. <code>PAUSE_MIN_FRAMES</code> is 4 frames of 100 ms, giving the 400 ms micro-pause trigger. <code>PAUSE_SILENCE_RMS</code> is the loudness below which a frame counts as silence; RMS is a plain average of signal strength, not its peak.</p>
+<p>The decision itself:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> <span class="keyword">let</span> <span class="variable">Some</span>(cut_chars) = <span class="title function_ invoke__">last_committable_punct</span>(&amp;new_text) &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">estimate</span> = <span class="title function_ invoke__">proportion</span>(cut_chars, total_chars, total);</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">cut_samples</span> = <span class="title function_ invoke__">snap_to_silence</span>(&amp;<span class="keyword">self</span>.window, estimate).<span class="title function_ invoke__">unwrap_or</span>(estimate);</span><br><span class="line">    <span class="keyword">if</span> cut_samples &gt;= MIN_CLAUSE_SAMPLES</span><br><span class="line">        &amp;&amp; <span class="title function_ invoke__">content_chars</span>(&amp;new_text.<span class="title function_ invoke__">chars</span>().<span class="title function_ invoke__">take</span>(cut_chars).collect::&lt;<span class="type">String</span>&gt;())</span><br><span class="line">            &gt;= MIN_CLAUSE_CONTENT_CHARS</span><br><span class="line">    &#123; <span class="keyword">return</span> <span class="title function_ invoke__">Ok</span>(<span class="title function_ invoke__">Some</span>(<span class="keyword">self</span>.<span class="title function_ invoke__">commit</span>(&amp;new_text, cut_chars, cut_samples))); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>This is the punctuation trigger. <code>last_committable_punct</code> finds the last punctuation mark that is not the buffer’s final character, <code>proportion</code> turns that position into an estimate of where in the audio the cut should fall, and <code>snap_to_silence</code> moves the estimate to the nearest real pause within 0.5 seconds. The estimate is crude: if the transcript is 40 characters and the punctuation sits at character 20, the cut is assumed halfway. Without the snap, a clause slice can bleed the first syllable of the next clause.</p>
+<p>The trailing-punctuation exclusion is one line: the search covers only <code>(0..chars.len().saturating_sub(1))</code>, excluding the last character, because rolling ASR speculatively appends a period to a partial window.</p>
+<h3 id="The-audio-path"><a href="#The-audio-path" class="headerlink" title="The audio path"></a>The audio path</h3><p>The capture buffer is a hand-rolled lock-free single-producer single-consumer ring — a fixed-size array where one side writes and the other reads, with no lock between them. Writing one sample is a single function:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) <span class="keyword">fn</span> <span class="title function_">push</span>(&amp;<span class="keyword">self</span>, value: <span class="type">f32</span>) &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">h</span> = <span class="keyword">self</span>.head.<span class="title function_ invoke__">load</span>(Ordering::Relaxed); <span class="keyword">let</span> <span class="variable">t</span> = <span class="keyword">self</span>.tail.<span class="title function_ invoke__">load</span>(Ordering::Acquire);</span><br><span class="line">    <span class="keyword">if</span> h - t == <span class="keyword">self</span>.cap &#123;</span><br><span class="line">        <span class="keyword">self</span>.tail.<span class="title function_ invoke__">fetch_max</span>(h - <span class="keyword">self</span>.cap + <span class="number">1</span>, Ordering::AcqRel);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">self</span>.slots[(h % <span class="keyword">self</span>.cap) <span class="keyword">as</span> <span class="type">usize</span>].<span class="title function_ invoke__">store</span>(value.<span class="title function_ invoke__">to_bits</span>(), Ordering::Relaxed);</span><br><span class="line">    <span class="keyword">self</span>.head.<span class="title function_ invoke__">store</span>(h + <span class="number">1</span>, Ordering::Release);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>head</code> and <code>tail</code> are two counters into the array: the producer writes at <code>head</code>, the consumer reads at <code>tail</code>, and when they meet the buffer is full, so <code>fetch_max</code> moves the tail one slot forward and the oldest sample is dropped. The hand-rolled ring exists because the usual “advance head, write slot, advance tail” order transiently empties the buffer, so a reader can observe a gap; the single atomic <code>fetch_max</code> makes “drop the oldest sample” one indivisible step.</p>
+<p>Echo cancellation uses the system’s own VoiceProcessingIO unit — the same AEC/AGC/NS path FaceTime uses, where AEC is acoustic echo cancellation, AGC is automatic gain control, and NS is noise suppression. The capture path tries to open that unit first, and when it fails it logs a warning and falls back to plain capture, with the playback gate taking over the echo problem. When AEC is off, the gate works like this: the translated audio physically leaves the speaker a few hundred milliseconds after it is written, so capture must be muted for <em>written sample duration + 300 ms acoustic margin</em>, not until the write returns.</p>
+<h3 id="Correcting-what-the-ASR-heard"><a href="#Correcting-what-the-ASR-heard" class="headerlink" title="Correcting what the ASR heard"></a>Correcting what the ASR heard</h3><p>ASR mis-hears proper nouns: <code>西游记</code> becomes <code>稀有記</code>. Two layers fix it: a source bias (injecting the term list into whisper’s decoder prompt, that is, the context text the decoder is given) and post-processing that compares <strong>toneless pinyin</strong>, the phonetic spelling of Chinese without tone marks:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">if</span> <span class="keyword">let</span> <span class="variable">Some</span>(seq) = &amp;<span class="keyword">self</span>.pinyin_seqs[ti] &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">seq_same_len</span> = &amp;text_pinyin[start..start + tlen];</span><br><span class="line">    <span class="keyword">if</span> seq.<span class="title function_ invoke__">len</span>() == tlen</span><br><span class="line">    &amp;&amp; seq_same_len.<span class="title function_ invoke__">iter</span>().<span class="title function_ invoke__">zip</span>(seq)</span><br><span class="line">        .<span class="title function_ invoke__">all</span>(|(tp, sp)| tp.<span class="title function_ invoke__">as_deref</span>() == <span class="title function_ invoke__">Some</span>(sp.<span class="title function_ invoke__">as_str</span>()))</span><br><span class="line">    &#123; candidates.<span class="title function_ invoke__">push</span>(Candidate &#123; start, len: tlen, term &#125;); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The outer <code>if</code> means the term list has a pinyin sequence for this position at all. The comparison walks the recognised text and the term’s pinyin side by side, requiring the same length and the same characters (<code>as_deref</code> unwraps the optional string before the equality test). Tone differences do not matter, and traditional/simplified variants are covered for free, because the comparison happens after conversion to pinyin. <code>crates/pipeline/src/hotwords.rs:113</code>.</p>
+<h2 id="The-trait-seam"><a href="#The-trait-seam" class="headerlink" title="The trait seam"></a>The trait seam</h2><p>The abstraction that makes all of this testable is four small traits. A <em>trait</em> here is a list of methods a type promises to have, so a caller can be written against the promise instead of a specific model:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#[async_trait::async_trait]</span></span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">trait</span> <span class="title class_">AsrEngine</span>: <span class="built_in">Send</span> + <span class="built_in">Sync</span> &#123;</span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">supported_langs</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> &amp;[Lang];</span><br><span class="line">    <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">transcribe</span>(&amp;<span class="keyword">self</span>, audio: &amp;AudioSegment) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;Transcript&gt;;</span><br><span class="line">    <span class="comment">/// Rolling-window partial transcript, not provided by default</span></span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">partial_stream</span>(&amp;<span class="keyword">self</span>, _stream: AudioSegment)</span><br><span class="line">        <span class="punctuation">-&gt;</span> <span class="type">Option</span>&lt;broadcast::Receiver&lt;TranscriptUpdate&gt;&gt; &#123; <span class="literal">None</span> &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>supported_langs</code> reports which languages the engine handles, <code>transcribe</code> returns the final transcript for one piece of audio, and <code>partial_stream</code> returns a stream of in-progress results for the user interface — with a default implementation of <code>None</code>, so an engine that cannot do partials does not have to write one. <code>crates/core/src/engine_traits.rs:4</code>. <code>Translator</code>, <code>Synthesizer</code> and <code>TextPolisher</code> follow the same shape, and <code>AudioPlatform</code> abstracts capture, playback and AEC so that <code>pipeline</code> has no macOS dependency at all.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>The ASR backend was chosen by benchmark, not by taste.</strong> The original design picked whisper. Then an A/B gate was written — a test that lets one option win only if it beats the other on stated metrics: “SenseVoice CER must be &lt;= whisper’s AND latency must be &lt;= 1/2 of whisper”. CER is the character error rate, the share of characters the recogniser got wrong. SenseVoice-small measured a Chinese CER of 0.026 against whisper’s 0.385, at 3–6× the speed, running on the CPU so it does not fight whisper for Metal, Apple’s GPU interface. The cost: SenseVoice has no prompt-injection API, so it only gets the post-processing layer of hotword correction — biasing recognition toward a known list of terms.</p>
+<p><strong>The translation model is sentence-isolated.</strong> opus-mt is small, fast and CPU-only, which is exactly why it was chosen — it does not contend with the GPU for TTS. The price is no dialogue context: pronouns and terminology that depend on previous turns do not survive. The documented upgrade path was a small Qwen, which instead became the optional <em>polisher</em>.</p>
+<p><strong>The polisher is optional because it costs latency.</strong> <code>--polish auto</code> means on for files, off for live, with a hard 800 ms deadline in live mode. It fixes homophone typos (wrong characters that sound right) and removes filler words, sitting between ASR and MT, driven by a system prompt that instructs the model to correct same-sound typos against a domain glossary, delete filler words, and change nothing else.</p>
+<p><strong>The driver is a fork, not from scratch.</strong> The spec rejected writing my own CoreAudio HAL plugin outright: “coreaudiod 稳定性: HAL 插件崩溃会影响系统音频, 故选择经过海量验证的 BlackHole 代码基” — roughly, a HAL plugin crash takes the whole system audio down with it, so the project chose the well-tested BlackHole code base. So <code>driver/macos</code> is a branded BlackHole fork — 4,628 lines of C — built twice with different device names and channel counts, and the build script <em>fails</em> if the string “BlackHole” survives in the artifacts.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>I missed the latency target, and I know why.</strong> The design target was a 1.5-second first clause. Measured: 3.2–3.5 seconds. The pipeline overhead is about 1.1 seconds (segmenter tick ≤0.5 s, rolling ASR ~0.3 s, MT ~0.35 s); the rest is ZipVoice, whose real-time factor (RTF) is about 1.2 — it needs roughly 1.2 seconds of compute per second of audio.</p>
+<p>The interesting part is <em>why</em> TTS is slow, because my first hypothesis was wrong. I assumed the sampling step count was the cost, so I benchmarked it: two steps gives a 451 ms RTF of 0.24, four steps gives 869 ms at 0.51. But the real cause is that the <strong>rolling voiceprint — a stored numeric description of the target speaker’s voice — changes the prompt file every clause</strong>, so the prompt cache always misses and the ONNX session (the loaded runtime instance of the model) is rebuilt every time. The fix is not a smaller step count; it is a stable prompt, or a cache key that does not change per clause.</p>
+<p><strong>The models are twice the size I planned.</strong> The target was ~700 MB on disk and ≤1.5 GB of RAM. Reality is about 2 GB, because whisper-small (466 MB) is retained alongside SenseVoice (155 MB) so the fallback stays available, plus the ZipVoice int8 build, its vocoder (the second model that renders synthesised speech as audio), two opus-mt pairs, and the optional 1 GB Qwen.</p>
+<p><strong>My documentation drifted from the code.</strong> The README says “≥6 content characters” before a pause commit, but the code checks <em>total</em> new characters including punctuation; the content-character rule applies only to the cut floor. The README also claims latency gates run in CI — the only workflow in the repository is a release build, there is no test CI at all. And the docs still reference a file, <code>live_inc.rs</code>, that was refactored away months ago.</p>
+<p><strong>One acceptance criterion is still open.</strong> The plan calls the remaining work “真人麦克风路径未由人亲测” — the real microphone path has not been verified by a human. The .pkg install, hot-plug reconnection (unplugging and replugging the virtual device), AEC against real speaker bleed, and the 20-second continuous-speech no-drop check are all still on the list.</p>
+<p>The project itself is in better shape than that list suggests: there are no <code>todo!()</code> or <code>unimplemented!()</code> markers in the Rust sources, the driver builds and installs, the CLI and the menubar app both work, and the segmenter has fourteen unit tests. What remains is mostly human validation and TTS speed — but “mostly human validation” is still not validated, and I would rather say so than let the README imply otherwise.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> — a sibling project from the same team, an ONNX-based speech toolkit</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ggml-org/whisper.cpp">whisper.cpp</a> — a C/C++ implementation of Whisper, the model family kept as the fallback recogniser</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/huggingface/candle">candle</a> — a Rust machine-learning framework for running small models locally</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/k2-fsa/ZipVoice">ZipVoice</a> — the text-to-speech model this post benchmarks, and the source of the voice-cloning prompt</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ExistentialAudio/BlackHole">BlackHole</a> — the macOS virtual audio driver whose code base this project forks</li>
+<li><a target="_blank" rel="noopener" href="https://developer.apple.com/documentation/coreaudio">CoreAudio</a> — Apple’s audio documentation, including the plug-in layer the virtual devices sit on</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/cpal/latest/cpal/">cpal</a> — a Rust library for cross-platform audio input and output</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-design-looks-like-this"><span class="toc-number">1.</span> <span class="toc-text">Why the design looks like this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">2.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-segmenter"><span class="toc-number">2.1.</span> <span class="toc-text">The segmenter</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-audio-path"><span class="toc-number">2.2.</span> <span class="toc-text">The audio path</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Correcting-what-the-ASR-heard"><span class="toc-number">2.3.</span> <span class="toc-text">Correcting what the ASR heard</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-trait-seam"><span class="toc-number">3.</span> <span class="toc-text">The trait seam</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

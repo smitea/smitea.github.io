@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="The same bug fixed three times: a work-stealing pool, a fresh OS thread per script, and finally a shared one. Plus what blocking Lua in async Rust really costs.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Rewrite a Collector in Rust">
+<meta property="og:url" content="http://shawhuang.com/2020/08/12/nirvana-bee/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="The same bug fixed three times: a work-stealing pool, a fresh OS thread per script, and finally a shared one. Plus what blocking Lua in async Rust really costs.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2020-08-12T02:25:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T02:08:49.916Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Rewrite a Collector in Rust</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2020/09/16/ktor-pipeline/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2020/05/08/nirvana-scrape/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-the-Rust-collector-is-put-together"><span class="toc-number">2.</span> <span class="toc-text">How the Rust collector is put together</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-implementations-born-together"><span class="toc-number">2.1.</span> <span class="toc-text">Two implementations, born together</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-custom-binary-protocol-because-JSON-would-not-do"><span class="toc-number">2.2.</span> <span class="toc-text">A custom binary protocol, because JSON would not do</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-datasource-is-just-an-async-function"><span class="toc-number">2.3.</span> <span class="toc-text">A datasource is just an async function</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-task-is-a-script-file"><span class="toc-number">2.4.</span> <span class="toc-text">A task is a script file</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-configuration-is-dotted-paths"><span class="toc-number">3.1.</span> <span class="toc-text">The configuration is dotted paths</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-build-is-optimised-for-size"><span class="toc-number">3.2.</span> <span class="toc-text">The build is optimised for size</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-thread-pool-three-attempts"><span class="toc-number">4.</span> <span class="toc-text">The thread pool: three attempts</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Blocking-Lua-inside-async-Rust"><span class="toc-number">4.1.</span> <span class="toc-text">Blocking Lua inside async Rust</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Rewrite a Collector in Rust
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2020-08-12T02:25:00.000Z" itemprop="datePublished">2020-08-12</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p><code>Bee</code> is a monitoring data collection engine, and it is the second half of a story that starts with the Kotlin collector I wrote about previously. The interesting part is not that it exists in Rust. The interesting part is that <strong>it was never a port</strong>.</p>
+<p><strong>What this post is about.</strong> It is about the Rust rewrite of that collector: how the collector talks to a separate program that owns the database connections, how a metric is written down and shipped, and how one concurrency bug was answered three different ways in three commits.</p>
+<p><strong>What you need to know first.</strong> Four words do most of the explaining. A <em>schema service</em> is the Java program that owns the database connections. A <em>datasource</em> is a named function you can call on a remote machine. A <em>task</em> is one metric you want collected. A <em>wire protocol</em> is the agreed format the two sides talk in.</p>
+<p>The last one is where the story is: the same bug — “how many scripts can run at once?” — got three different answers in three commits.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The product is the same problem as before: pull metrics from hundreds of databases and hosts on a schedule, ship them to Riemann — the time-series database the fleet reports to — and never let one slow instance stall the fleet. The README states the motivation for the rewrite in one sentence:</p>
+<blockquote>
+<p>Bee 是一组小巧，异步的网络监控数据采集服务…… Bee 本身采用 Rust 语言开发，所以其内存占用和 CPU 等系统资源不会占用太大。</p>
+</blockquote>
+<p>(“Bee is a set of small, asynchronous network monitoring collection services… Bee is developed in Rust, so its memory footprint and CPU usage do not take up too much.”)</p>
+<p>That sentence is the whole justification, and it is a deployment argument: this collector runs <strong>1:1 on every monitored host and database</strong>. A JVM means a 40 MB jar, a heap to tune, and GC pauses (garbage collection stops every thread while it cleans up) on a machine already running the thing being monitored.</p>
+<h2 id="How-the-Rust-collector-is-put-together"><a href="#How-the-Rust-collector-is-put-together" class="headerlink" title="How the Rust collector is put together"></a>How the Rust collector is put together</h2><h3 id="Two-implementations-born-together"><a href="#Two-implementations-born-together" class="headerlink" title="Two implementations, born together"></a>Two implementations, born together</h3><p>The repository’s second commit — <code>feat: first commit</code>, 2020-10-20 — is 174 files and 12,391 insertions, and it contains <strong>the Rust workspace and the Gradle/Java modules at the same time</strong> (Gradle is the standard Java build tool). There was no Java program that was later translated; there were two programs from day one.</p>
+<p>That was a deliberate strategy, and the git history shows it being executed:</p>
+<ul>
+<li><code>c6a59f2 fix: thread pool</code> (2020-12-23) — the Rust collector <strong>and</strong> the Java <code>SchemaService</code>: the same bug fixed in both implementations in one commit.</li>
+<li><code>917fbb1 fix: thread pool</code> (2020-12-24) — the Java <code>BeeServer</code> plus the Lua task scripts.</li>
+<li><code>2b3449e fix: postgresql</code> (2021-03-09) — folds five <code>*Schema.java</code> classes into <code>*Connector.java</code>.</li>
+<li><code>735ebe9 fix: suport AES</code> (2021-03-10) — moves password decryption from Java into Rust.</li>
+</ul>
+<p>The Java side was never bulk-deleted; it was trimmed file by file as the Rust side took over. The two implementations share a wire protocol, so they can be A/B’d — run side by side and compared — and moved over feature by feature. The Java <code>database</code> and <code>host</code> schemas still exist at HEAD (the latest commit), and the Rust collector talks to them over the same protocol.</p>
+<h3 id="A-custom-binary-protocol-because-JSON-would-not-do"><a href="#A-custom-binary-protocol-because-JSON-would-not-do" class="headerlink" title="A custom binary protocol, because JSON would not do"></a>A custom binary protocol, because JSON would not do</h3><p>The wire format between collector and schema service is a hand-rolled binary protocol on top of <code>tokio-util</code>‘s <code>FramedRead</code>/<code>FramedWrite</code> (tokio is Rust’s async runtime — the library that runs async code on a pool of threads — and tokio-util is its bag of helpers). The two helpers read and write length-prefixed <em>frames</em>: chunks of bytes with a header saying how long each one is.</p>
+<p>Each packet is a small header followed by a payload of basic values only — nil, integer, number, boolean, string, bytes. The protocol document (<code>doc/src/protocol/data.md</code>) rules out arrays and key-value structures, so anything complicated travels as a byte stream instead.</p>
+<p>The protocol has around sixty stable error codes, documented in <code>doc/src/error.md</code>. The reason: “the schema service went away” and “your script threw a Lua error” need to be distinguishable by a collector running on someone else’s database server.</p>
+<p>Connecting is where the timeout lives. The collector reads <code>connection_timeout</code> off the instance, defaulting to 10 seconds, adds a second of slack, and wraps the connect in a hard deadline. The <code>+ 1</code> is deliberate: the deadline is one second later than the configured timeout, so the collector’s own timeout fires first and the error names the real problem. <code>set_nodelay(true)</code> turns off Nagle’s algorithm — the trick of merging small writes into fewer packets.</p>
+<h3 id="A-datasource-is-just-an-async-function"><a href="#A-datasource-is-just-an-async-function" class="headerlink" title="A datasource is just an async function"></a>A datasource is just an async function</h3><p>The plugin model is a <em>trait</em> — Rust’s way of writing “an interface”: a list of methods an implementor must provide. The <code>#[datasource]</code> attribute macro writes the boilerplate for you:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#[async_trait]</span></span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">trait</span> <span class="title class_">DataSource</span>: <span class="built_in">Send</span> + <span class="built_in">Sync</span> &#123;</span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">name</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> &amp;<span class="type">str</span>;</span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">args</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> Columns;</span><br><span class="line">    <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">collect</span>(&amp;<span class="keyword">self</span>, request: &amp;<span class="keyword">mut</span> Request) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>libcore/rust/src/datasource.rs:4</code>. <code>Send + Sync</code> are Rust’s marker traits: <code>Send</code> means the value may be moved to another thread, <code>Sync</code> that it may be shared between threads. <code>#[async_trait]</code> lets a trait method be <code>async</code> without boxing every future. The <code>#[datasource]</code> macro derives the input <code>Columns</code> — the named, typed parameters the function takes — from the signature and injects the <code>Promise</code>, <code>Request</code> and <code>Arc&lt;Register&gt;</code> parameters, so the wire representation is <em>generated</em> rather than hand-maintained. A datasource is a named, typed, remotely callable function: columns in, rows out.</p>
+<h3 id="A-task-is-a-script-file"><a href="#A-task-is-a-script-file" class="headerlink" title="A task is a script file"></a>A task is a script file</h3><p>There is no task table. A task is a file in <code>scripts/task/</code>:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">fn</span> <span class="title function_">from_file</span>&lt;T: <span class="built_in">AsRef</span>&lt;Path&gt;&gt;(path: T) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;Task&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">id</span> = path.<span class="title function_ invoke__">as_ref</span>().<span class="title function_ invoke__">file_stem</span>()...;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">script_type</span> = path.<span class="title function_ invoke__">as_ref</span>().<span class="title function_ invoke__">extension</span>()...;</span><br><span class="line">    Task &#123; id: id.<span class="title function_ invoke__">to_string</span>(), script: <span class="title function_ invoke__">read_to_string</span>(path)?,</span><br><span class="line">        timeout: Duration::<span class="title function_ invoke__">from_secs</span>(<span class="number">10</span>), ... &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>bee/src/features/task.rs:58</code>. The id is the filename stem — <code>mysql_qps.lua</code> becomes the task <code>mysql_qps</code> — and the extension decides the action. The <code>...</code> stands for the error handling that turns the two <code>OsStr</code> values (the raw path components) into strings.</p>
+<p>The repository carries 91 task files — 4,313 lines of Lua and SQL, plus 3,057 lines of Perl for the host collection — so adding a metric means adding a file, not a release.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────────────────────────────────────────────────────┐</span><br><span class="line">│ bee (collector)                                              │</span><br><span class="line">│                                                              │</span><br><span class="line">│  Schedule ──► Action::SQL ─────────────────┐                │</span><br><span class="line">│      │        Action::Lua ──┐              │                │</span><br><span class="line">│      │                      ▼              ▼                │</span><br><span class="line">│      │              ┌─────────────┐   ┌──────────────┐      │</span><br><span class="line">│      │              │  call rt    │   │  SchemaClient│      │</span><br><span class="line">│      │              │ (tokio MT)  │   │  (wire proto)│      │</span><br><span class="line">│      │              └──────┬──────┘   └──────┬───────┘      │</span><br><span class="line">│      │                     │                 │              │</span><br><span class="line">│      │              ┌──────▼──────┐          ▼              │</span><br><span class="line">│      │              │  Lua VM     │   ┌──────────────┐      │</span><br><span class="line">│      │              │ (mlua)      │   │  agent /     │      │</span><br><span class="line">│      │              └──────┬──────┘   │  db schema   │      │</span><br><span class="line">│      │                     │          │  (java)      │      │</span><br><span class="line">│      │              ┌──────▼──────┐   └──────────────┘      │</span><br><span class="line">│      │              │  State mpsc │─────────┐                │</span><br><span class="line">│      │              │  rows       │         ▼                │</span><br><span class="line">│      │              └─────────────┘   ┌──────────┐          │</span><br><span class="line">│      └─────────────────────────────────►│ Riemann  │          │</span><br><span class="line">│                                        └──────────┘          │</span><br><span class="line">└──────────────────────────────────────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>Everything lives inside one box: the <code>bee</code> collector process; the arrows show work flowing between the boxes. The <em>schedule</em> on the left fires a task that is either SQL (run against a database) or Lua (a small script). SQL tasks go through <em>SchemaClient</em>, which speaks the binary wire protocol to a Java database schema or the native Rust agent on the host. Lua tasks go into a <em>Lua VM</em> — the interpreter that runs the script — owned by a tokio runtime; “call rt (tokio MT)” is the multi-threaded runtime hosting those interpreters. Script rows flow down the <em>State mpsc</em> box — an mpsc channel is a many-producer, single-consumer queue, so the collector keeps reading while the script keeps writing — and the bottom arrow carries the metrics to Riemann.</p>
+<p>Two action types implement the same trait. <code>SQLAction</code> pushes the script into the request arguments and calls <code>query</code> on the remote schema. <code>LuaAction</code> builds an mlua VM, injects the globals — values the script can read by name: <code>logger</code>, <code>task</code>, <code>instance</code>, <code>session</code>, <code>request</code>, <code>cache</code> — runs the common scripts, then the task’s own script. Rows stream back as a small state machine — <code>Ready(columns)</code>, <code>Process(row)</code>, <code>Err</code>, <code>Ok</code> — and the first row establishes the schema: type information travels once, before the first row, later rows are typed by position.</p>
+<h3 id="The-configuration-is-dotted-paths"><a href="#The-configuration-is-dotted-paths" class="headerlink" title="The configuration is dotted paths"></a>The configuration is dotted paths</h3><p><code>bee.toml</code> — TOML is a simple <code>key = value</code> config format — is read through a tiny helper that walks dotted keys. Call sites read <code>config.get_value(&quot;collector.call_max_threads&quot;)</code>. The helper splits the key at the <code>.</code> and recurses into the nested table. It is not a general TOML binding library, just enough to keep the config file flat and readable.</p>
+<h3 id="The-build-is-optimised-for-size"><a href="#The-build-is-optimised-for-size" class="headerlink" title="The build is optimised for size"></a>The build is optimised for size</h3><p>The release profile in <code>Cargo.toml</code> sets <code>opt-level = &#39;z&#39;</code> (optimise for size, not speed), <code>lto = true</code> (link-time optimisation: the linker can inline across crate boundaries — a crate is one compiled Rust library or binary) and <code>codegen-units = 1</code> (compile everything as one unit). For a binary deployed on every monitored host, artefact size matters more than peak throughput. Cross-compilation targets included <code>x86_64-unknown-linux-musl</code> (a fully static Linux binary) and <code>windows-gnu</code>, so the collector shipped as one static file with no runtime dependency.</p>
+<h2 id="The-thread-pool-three-attempts"><a href="#The-thread-pool-three-attempts" class="headerlink" title="The thread pool: three attempts"></a>The thread pool: three attempts</h2><p>The git history contains three commits with the same message — <code>fix: thread pool</code> — and each is a different answer to the same question.</p>
+<p><strong>Attempt one, in Java:</strong> the schema service ran connections on Netty event loops (Netty is the Java network library it was built on) and handed the actual work to <code>Executors.newWorkStealingPool(config.getWorkThreadSize())</code> — a pool where idle workers pull tasks from their neighbours’ queues.</p>
+<p><strong>Attempt two, in Rust:</strong> one fresh OS thread per script execution, via <code>std::thread::Builder::new().name(uid).spawn(...)</code>. Every Lua run got its own thread, never reused.</p>
+<p><strong>Attempt three</strong>, which is what the last commit looks like, replaced that with a shared rayon pool (rayon’s threads steal work from each other too) and gave each script its own single-threaded tokio runtime.</p>
+<p><strong>Attempt four</strong> is still uncommitted in the working tree, and it is the interesting one. The rayon block is commented out and replaced by a tokio <code>LocalSet</code>:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">local</span> = LocalSet::<span class="title function_ invoke__">new</span>();</span><br><span class="line">local.<span class="title function_ invoke__">spawn_local</span>(<span class="keyword">async</span> <span class="keyword">move</span> &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">rs</span> = <span class="title function_ invoke__">exec_lua_script</span>(lua, script, depends).<span class="keyword">await</span>;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">outcome</span> = <span class="keyword">if</span> <span class="keyword">let</span> <span class="variable">Err</span>(err) = rs &#123; <span class="title function_ invoke__">Err</span>(Error::<span class="title function_ invoke__">from</span>(err)) &#125; <span class="keyword">else</span> &#123; <span class="title function_ invoke__">Ok</span>(()) &#125;;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">_</span> = signal_tx.<span class="title function_ invoke__">send</span>(outcome).<span class="keyword">await</span>;</span><br><span class="line">&#125;);</span><br></pre></td></tr></table></figure>
+
+<p><code>bee/src/features/collect/mod.rs:259</code> (the original writes the two branches out longhand, and the commented-out rayon line sits just above this block). A <code>LocalSet</code> is a tokio container for tasks that must stay on the thread they were started on. The motivation is thread affinity: the rayon version had to <em>move</em> a <code>!Send</code> Lua VM — a type Rust has proven must not cross threads — onto a worker thread, which is where <code>Lua::into_static()</code> and <code>Lua::from_static()</code> come from. A <code>LocalSet</code> keeps the script on the caller’s thread, where a <code>!Send</code> VM belongs, and the <code>unsafe impl Send/Sync for Collector</code> can eventually go away. The cost: the rayon pool was what bounded how many scripts ran at once, and a <code>LocalSet</code> runs the script on the caller’s current thread, so the bound must come from the “call” runtime instead.</p>
+<p>The lesson is not “use rayon”. It is: <strong>in async Rust, “spawn a thread per task” silently reintroduces the exact thread-pool problem you were trying to escape.</strong> The Rust attempt-two version had the same unbounded-thread pathology as a naive Java implementation, and it took two commits to notice.</p>
+<h3 id="Blocking-Lua-inside-async-Rust"><a href="#Blocking-Lua-inside-async-Rust" class="headerlink" title="Blocking Lua inside async Rust"></a>Blocking Lua inside async Rust</h3><p>The harder problem is that mlua’s <code>Lua</code> is thread-bound and <code>!Send</code>, while the collector wants to be <code>Send + Sync</code> so it can live in a shared <code>Arc</code> — a reference-counted smart pointer you can share between threads. The file answers the compiler with two empty-looking lines, <code>unsafe impl Send for Collector &#123;&#125;</code> and <code>unsafe impl Sync for Collector &#123;&#125;</code>, which tell Rust to accept, without checking, that this type may be moved and shared across threads.</p>
+<p>The consequences cascade through the file: a <em>second</em> multi-thread tokio runtime for “call” work, a current-thread runtime per script, <code>async_channel</code> plus <code>LocalSet</code> to await a local task from an async context, and <code>Lua::into_static()</code> / <code>Lua::from_static()</code> to move a VM between threads.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>The Rust collector has no database connectors.</strong> The Rust side talks to the <strong>Java</strong> <code>database</code> schemas over the shared wire protocol. What the port actually replaced was SSH-based host collection: the new native Rust <code>agent</code> runs on the host and streams metrics locally instead of shelling over SSH.</p>
+<p><strong>It is not buildable today.</strong> All git dependencies point at a Chinese npm-style mirror (<code>github.com.cnpmjs.org/smitea/Rocket.git</code>, forks of <code>mlua</code>, <code>heim</code>, <code>notify</code>, <code>log4rs</code>). <code>bee/src/lib.rs</code> starts with <code>#![feature(decl_macro)]</code>, which only compiles on the experimental nightly Rust. The workspace lists <code>libcore/codegen</code> twice. <code>cargo metadata --offline</code> still resolves, so the manifests are valid — but the sources are gone.</p>
+<p><strong>There is a real use-after-free in the agent</strong> — the program uses memory after handing it back to the allocator. A hand-rolled buffer avoids a <code>Vec</code> (Rust’s normal growable list) allocation per file read, and it frees the memory it just handed out:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// inside an `unsafe &#123; ... &#125;` block, in new_vec&lt;&#x27;a&gt;(size: usize) -&gt; &amp;&#x27;a mut [u8]</span></span><br><span class="line"><span class="keyword">let</span> <span class="variable">layout</span> = Layout::<span class="title function_ invoke__">from_size_align_unchecked</span>(size * size_of::&lt;<span class="type">u8</span>&gt;(), size_of::&lt;<span class="type">u8</span>&gt;());</span><br><span class="line"><span class="keyword">let</span> <span class="variable">ptr</span> = std::alloc::<span class="title function_ invoke__">alloc</span>(layout);</span><br><span class="line"><span class="keyword">let</span> <span class="variable">buffer</span> = std::slice::<span class="title function_ invoke__">from_raw_parts_mut</span>(ptr, size);</span><br><span class="line">std::alloc::<span class="title function_ invoke__">dealloc</span>(ptr, layout);   <span class="comment">// &lt;-- frees the memory it just handed out</span></span><br></pre></td></tr></table></figure>
+
+<p><code>schemas/agent/src/agent/mod.rs:57</code>. The first line builds a raw memory layout without checking it. The next two allocate memory and wrap it in a byte slice. The fourth hands that memory back to the allocator while the slice still points at it — and the function then returns that slice, so any later read touches freed memory. The <code>Vec</code> it was avoiding would have been correct and free. The whole body sits in an <code>unsafe</code> block, and the signature (<code>&amp;&#39;a mut [u8]</code>) promises a slice that outlives the call.</p>
+<p><strong>A clock that can panic.</strong> <code>SystemTime::duration_since(...).unwrap()</code> on a machine whose clock steps backwards panics the collector.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Decide the port strategy before writing the second implementation.</strong> Dual implementation from commit two is defensible when the wire protocol is stable — and here it worked, because the Java side stayed alive as a reference until the Rust side took over. But it doubles the surface area of every bug fix, and the “same bug fixed in both implementations” commits are a tax paid forever. Better: write the protocol and the Java side, freeze it, then port.</p>
+<p><strong>Solve the blocking-Lua problem at the boundary, not with <code>unsafe</code>.</strong> The whole <code>unsafe impl Send/Sync for Collector</code> block exists because a Lua VM is thread-bound. The clean answer is a dedicated <em>actor</em> per script — a small task that owns the VM and answers requests over a channel, a queue one task fills and another drains — so the thread-affinity rule lives in the type system, not in a comment.</p>
+<p><strong>Keep the size-optimised release profile, drop the rest of the compromises.</strong> <code>opt-level = &#39;z&#39;</code> and <code>lto = true</code> are right for a per-host binary. But the nightly feature gate, the dead mirrors and the duplicated workspace member are neglect, and they are why a five-year-old project cannot be built.</p>
+<p><strong>And keep the interesting part.</strong> The good decisions came from the domain, not the language: a task is a file, a datasource is a function whose wire format is generated, the collector holds no state, and the protocol has sixty distinguishable error codes because the collector runs on someone else’s database server. Those survive a rewrite; the thread pool did not.</p>
+<p>One last thing. In the working tree there is an untracked file, <code>test.metric</code>, dated about a year after the last commit — a sketch of a typed metric-pipeline DSL (a domain-specific language: a small custom language for one job):</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">input host;</span><br><span class="line">metric cpu_usage(ctx: @Context, deplay_time: u64) =&gt; (host: string, ip: string, idle: f64, ...);</span><br><span class="line">view cpu_usage(ctx: @Context) =&gt; (resp: Response);</span><br><span class="line">#[os = &#x27;linux&#x27;, version = &#x27;1.0.0&#x27;]</span><br><span class="line">cpu_usage_linux(ctx: @Context, deplay_time: u64) as cpu_usage &#123; ... &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>input</code> declares a source, <code>metric</code> a measurement and the shape of its output, <code>view</code> how it is presented, and <code>yield</code> hands the values out. It is the ancestor of the pipeline idea in the 2026 <code>bee</code> workspace — the one where a pipeline is a callback node in a DAG (a directed acyclic graph: steps with arrows between them and no loops) and the scripting language is Lua because the people writing the rules are not the people running the cluster. Same idea, five years earlier, in a notation that never shipped. Picking this codebase up again, I would turn <code>test.metric</code> into a real DSL: the pipeline was always the good idea; the thread pool was just the bug I kept fixing.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/tokio-rs/tokio">tokio</a> — the async runtime, its thread pools and <code>LocalSet</code></li>
+<li><a target="_blank" rel="noopener" href="https://github.com/mlua-rs/mlua">mlua</a> — the Lua bindings the task scripts run inside</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/rayon-rs/rayon">rayon</a> — the work-stealing pool used in the third attempt</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/mlua/latest/mlua/">mlua on docs.rs</a> — why a <code>Lua</code> value cannot cross threads</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/cberner/redb">redb</a> — the embedded store used for state in the later <code>bee</code> workspace</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/facebook/rocksdb">RocksDB</a> — the storage engine behind that state store</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">RFC 4253</a> — the protocol the old SSH-based host collection spoke</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-the-Rust-collector-is-put-together"><span class="toc-number">2.</span> <span class="toc-text">How the Rust collector is put together</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-implementations-born-together"><span class="toc-number">2.1.</span> <span class="toc-text">Two implementations, born together</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-custom-binary-protocol-because-JSON-would-not-do"><span class="toc-number">2.2.</span> <span class="toc-text">A custom binary protocol, because JSON would not do</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-datasource-is-just-an-async-function"><span class="toc-number">2.3.</span> <span class="toc-text">A datasource is just an async function</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-task-is-a-script-file"><span class="toc-number">2.4.</span> <span class="toc-text">A task is a script file</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-configuration-is-dotted-paths"><span class="toc-number">3.1.</span> <span class="toc-text">The configuration is dotted paths</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-build-is-optimised-for-size"><span class="toc-number">3.2.</span> <span class="toc-text">The build is optimised for size</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-thread-pool-three-attempts"><span class="toc-number">4.</span> <span class="toc-text">The thread pool: three attempts</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Blocking-Lua-inside-async-Rust"><span class="toc-number">4.1.</span> <span class="toc-text">Blocking Lua inside async Rust</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

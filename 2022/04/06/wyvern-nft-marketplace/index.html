@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="What the settlement kernel gives you, what it refuses to do, and the four contracts you still have to write yourself">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Build an NFT Marketplace on the Wyvern Protocol">
+<meta property="og:url" content="http://shawhuang.com/2022/04/06/wyvern-nft-marketplace/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="What the settlement kernel gives you, what it refuses to do, and the four contracts you still have to write yourself">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2022-04-06T08:20:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:34:40.854Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Build an NFT Marketplace on the Wyvern Protocol</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2022/05/10/Hema-Hema/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2021/02/12/collector-microservices/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Four-design-decisions-and-what-each-one-buys"><span class="toc-number">2.1.</span> <span class="toc-text">Four design decisions, and what each one buys</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-order-is-smaller-than-you-expect"><span class="toc-number">2.2.</span> <span class="toc-text">The order is smaller than you expect</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Four-ways-to-be-authorised"><span class="toc-number">2.3.</span> <span class="toc-text">Four ways to be authorised</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-proxy-is-the-user"><span class="toc-number">2.4.</span> <span class="toc-text">The proxy is the user</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-atomicizer-is-a-library-not-a-contract"><span class="toc-number">2.5.</span> <span class="toc-text">The atomicizer is a library, not a contract</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-you-still-have-to-build"><span class="toc-number">4.</span> <span class="toc-text">What you still have to build</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-fork"><span class="toc-number">5.</span> <span class="toc-text">The fork</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">6.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">7.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">8.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Build an NFT Marketplace on the Wyvern Protocol
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2022-04-06T08:20:00.000Z" itemprop="datePublished">2022-04-06</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>“Wyvern” is the protocol OpenSea ran for its first two years. I now think every exchange protocol gets one of its design decisions right and one wrong, and Wyvern is the example I reach for to show both. The question this post answers is concrete: <strong>if I want an NFT marketplace — a place to trade non-fungible tokens, one-of-a-kind tokens — what does Wyvern actually hand me, and what do I have to build?</strong></p>
+<p><strong>What this post is about.</strong> The Wyvern v3 contracts, read the way I wish someone had read them to me. You will learn what an order contains (less than you would expect), how a trade is authorised, and which pieces — order book, matcher, fees, cancellation — you still have to write yourself. The excerpts come from the fork described halfway through, and one of them contains a bug I introduced.</p>
+<p><strong>What you need to know first.</strong> Three words carry the rest of the post. An <em>NFT</em> is a token that stands for one unique thing; the ERC-721 standard is the contract interface for it. A <em>maker</em> is whoever creates and signs an order, and a <em>taker</em> is whoever fills it. An <em>order</em> is a signed promise to trade on stated terms; it is data, not a transaction.</p>
+<p>Short answer: a settlement kernel — the core contract that validates and executes matched orders — and almost everything else.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>An atomic swap — a trade where either both legs happen or neither does — between two ERC-721s is easy to write badly. The naive version is an escrow — a contract that holds assets until conditions are met — per asset type: one contract for ERC721-for-ERC721, one for ERC721-for-ERC20 (ERC-20 is the standard for interchangeable tokens, like a stablecoin), one for ERC1155-for-ERC20 (ERC-1155 lets one contract issue many token types at once). Each has its own storage, accounting and bugs. Add a bundle sale — an NFT, a payment, a commission, a royalty — and you need a fourth contract, or a <code>MultiSend</code> (a helper that batches several transfers into one call), or a lot of hope.</p>
+<p>Wyvern’s answer was to separate three things that the naive design fuses together:</p>
+<ol>
+<li><strong>What is being offered</strong> — data, in an order.</li>
+<li><strong>How that offer is checked</strong> — a contract you choose, that answers a question about a piece of <em>calldata</em>, the bytes a call carries to name a function and its arguments.</li>
+<li><strong>Who may trade it</strong> — a proxy per user, and a signature.</li>
+</ol>
+<p>The protocol ships the settlement kernel. Everything else is yours.</p>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><h3 id="Four-design-decisions-and-what-each-one-buys"><a href="#Four-design-decisions-and-what-each-one-buys" class="headerlink" title="Four design decisions, and what each one buys"></a>Four design decisions, and what each one buys</h3><p><strong>1. Authorisation happens off chain.</strong> A maker — whoever creates and signs an order — signs an EIP-712 order. EIP-712 is the standard for signing structured data, so wallets can display what is being signed. No transaction, no gas, no on-chain nonce. The exchange verifies the signature at match time, and only at match time.</p>
+<p><strong>2. One generic contract for every asset pair.</strong> Instead of one escrow per combination, an order is “execute this call, and validate it with this selector” — the selector is the 4-byte function name inside the calldata. A new asset type needs no new exchange contract, because the exchange never knew what an asset was.</p>
+<p><strong>3. One proxy per user.</strong> The maker approves their ERC-20/721/1155 <em>once</em>, to their own proxy — a small contract that acts on the user’s behalf. The exchange never holds funds, never touches allowances, and never has a balance. The proxy is the trading identity, which means the exchange itself can be redeployed and upgraded without users migrating anything.</p>
+<p><strong>4. Validation is a static call</strong> — a read-only call that cannot change any state. The matcher supplies the actual calldata. A <code>STATICCALL</code> into the order’s static target re-derives what that calldata does — right token, right amount, right ratio — and returns the new fill (how much of the order has been used). The exchange never interprets the calldata; it asks a contract that you wrote what it means.</p>
+<h3 id="The-order-is-smaller-than-you-expect"><a href="#The-order-is-smaller-than-you-expect" class="headerlink" title="The order is smaller than you expect"></a>The order is smaller than you expect</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">return keccak256(abi.encode(</span><br><span class="line">    ORDER_TYPEHASH,</span><br><span class="line">    order.registry, order.maker,</span><br><span class="line">    order.staticTarget, order.staticSelector,</span><br><span class="line">    keccak256(order.staticExtradata),</span><br><span class="line">    order.maximumFill, order.listingTime,</span><br><span class="line">    order.expirationTime, order.salt));</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/exchange/ExchangeCore.sol:121</code>. This is the hash a maker signs. <code>keccak256</code> is Ethereum’s hash function, <code>ORDER_TYPEHASH</code> is a constant naming the kind of message, and <code>salt</code> is a random number that makes two otherwise-identical orders hash differently.</p>
+<p>Notice what is <strong>not</strong> in the order: no token address, no token id, no price. Those live inside <code>staticExtradata</code>, and they are decoded by the static target. The price is not a field of the protocol; it is a property of the code <em>you</em> chose. This is the single most important thing to understand about Wyvern, and it cuts both ways.</p>
+<h3 id="Four-ways-to-be-authorised"><a href="#Four-ways-to-be-authorised" class="headerlink" title="Four ways to be authorised"></a>Four ways to be authorised</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">/* (a): sent by maker */</span><br><span class="line">if (maker == msg.sender) &#123;</span><br><span class="line">    return true;</span><br><span class="line">&#125;</span><br><span class="line">/* (b): previously approved */</span><br><span class="line">if (approved[maker][hash]) &#123;</span><br><span class="line">    return true;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/exchange/ExchangeCore.sol:202</code>. Branch (a) lets the maker execute their own order directly; branch (b) accepts an order the maker approved on chain beforehand. The rest of the original function computes the hash that must be signed and continues with the two signature branches below.</p>
+<p>Branch (c) is EIP-1271: if the maker is itself a contract, the exchange asks that contract whether the signature is valid and accepts a fixed <em>magic value</em> — a constant meaning “yes”. A contract maker (a Gnosis Safe, an NFT marketplace’s own escrow) is a first-class citizen. Branch (d) is plain ECDSA — the signature scheme Ethereum wallets use — over the EIP-712 hash, with a <code>personal_sign</code> fallback (the wallet call that signs a plain message) for wallets that cannot sign typed data.</p>
+<h3 id="The-proxy-is-the-user"><a href="#The-proxy-is-the-user" class="headerlink" title="The proxy is the user"></a>The proxy is the user</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">require(</span><br><span class="line">    msg.sender == user || (!revoked &amp;&amp; registry.contracts(msg.sender)),</span><br><span class="line">    &quot;Authenticated proxy can only be called by its user...&quot;</span><br><span class="line">);</span><br><span class="line">if (howToCall == HowToCall.DelegateCall) &#123;</span><br><span class="line">    (result, ret) = dest.delegatecall(data);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/registry/AuthenticatedProxy.sol:77</code>. Only the user may call their own proxy — or, while <code>revoked</code> is false, a contract the registry has approved. <code>revoked</code> is a kill switch: the user can cut the exchange’s access to their proxy without any transaction from the exchange. The <code>DelegateCall</code> branch matters most: a <em>delegatecall</em> runs another contract’s code as if it were this contract’s own code, spending this contract’s assets. It is what lets the atomicizer run <em>in the proxy’s context</em> and move the proxy’s assets. The original function handles the plain <code>Call</code> case the same way, with <code>dest.call(data)</code>.</p>
+<h3 id="The-atomicizer-is-a-library-not-a-contract"><a href="#The-atomicizer-is-a-library-not-a-contract" class="headerlink" title="The atomicizer is a library, not a contract"></a>The atomicizer is a library, not a contract</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">for (uint256 i = 0; i &lt; addrs.length; i++) &#123;</span><br><span class="line">    (bool success, ) = addrs[i].call&#123;value: values[i]&#125;(cd);</span><br><span class="line">    require(success, &quot;Atomicizer subcall failed&quot;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/WyvernAtomicizer.sol:35</code>. A <em>library</em> is helper code that runs in its caller’s context rather than as its own contract. The excerpt keeps only the call-and-check part; the original loop also reassembles each sub-call’s bytes from one flat array before calling it.</p>
+<p>A bundle — NFT plus payment plus commission plus royalty — is one call with a list of sub-calls, and any failure reverts the whole thing. It is <code>DELEGATECALL</code>ed from the maker’s proxy, so the sub-calls spend <em>the maker’s</em> approvals.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">maker                                        taker</span><br><span class="line"> │                                            │</span><br><span class="line"> ├─ register proxy (once) ─ approve tokens    │</span><br><span class="line"> │                                            │</span><br><span class="line"> ├─ sign order (off chain, free)              │</span><br><span class="line"> │                                            │</span><br><span class="line"> └────────── your order book ◄── taker&#x27;s order ┘</span><br><span class="line">               │</span><br><span class="line">               ▼  your matcher builds two Calls</span><br><span class="line">      ┌────────────────────────────────────────┐</span><br><span class="line">      │  WyvernExchange.atomicMatch_           │</span><br><span class="line">      │                                        │</span><br><span class="line">      │  validate parameters                   │</span><br><span class="line">      │  validate authorisation (a/b/c/d)       │</span><br><span class="line">      │  call 1  → through maker&#x27;s proxy       │</span><br><span class="line">      │  call 2  → through taker&#x27;s proxy       │</span><br><span class="line">      │  STATICCALL both static targets        │</span><br><span class="line">      │  write fills[maker][hash]              │</span><br><span class="line">      └────────────────────────────────────────┘</span><br><span class="line">               │</span><br><span class="line">               ▼</span><br><span class="line">        OrdersMatched event → your indexer</span><br></pre></td></tr></table></figure>
+
+<p>The maker creates and signs an order; the <em>taker</em> is whoever fills it. Arrows read top to bottom as steps in time: the once-only setup, the free off-chain signature, and then the single box — the one on-chain transaction — which validates both sides, runs two proxy calls, and finishes with an event for your indexer (the program that turns events into database rows) to record.</p>
+<p>Two details in that diagram are easy to miss. <strong>The two sides are asymmetric</strong>: call 1 executes, then call 2, so the second side can observe the first’s effects; and the static calls run <em>after</em> the effects, so they check the resulting state, not the intended state.</p>
+<p><strong>There is no on-chain cancel.</strong> In v3.1 you rely on <code>expirationTime</code> (where <code>0</code> means never), on the maker bumping the <code>salt</code>, or on the maker burning their own remaining fill with <code>setOrderFill</code>. Every one of those is a transaction the maker pays for, which is why marketplaces wrap listing in a <em>relayer</em> — a service that submits transactions on a user’s behalf.</p>
+<h2 id="What-you-still-have-to-build"><a href="#What-you-still-have-to-build" class="headerlink" title="What you still have to build"></a>What you still have to build</h2><p>This is the part that decides whether “quick” is true.</p>
+<table>
+<thead>
+<tr>
+<th>Piece</th>
+<th>Why the protocol does not do it</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Order book and indexer</strong></td>
+<td>Wyvern emits <code>OrdersMatched</code>, <code>OrderApproved</code>, <code>OrderFillChanged</code>. You consume them and keep your own database.</td>
+</tr>
+<tr>
+<td><strong>Matcher</strong></td>
+<td>Choosing counterparties, constructing the two <code>Call</code>s, and packing them into the <code>uint256[16]</code> the exchange expects.</td>
+</tr>
+<tr>
+<td><strong>API and frontend</strong></td>
+<td>The protocol has no notion of a user interface.</td>
+</tr>
+<tr>
+<td><strong>Proxy registration UX</strong></td>
+<td>Every user must register a proxy and approve tokens to it <em>before</em> they can trade. This is a mandatory first-run step and it is the worst onboarding you can design.</td>
+</tr>
+<tr>
+<td><strong>Metadata and asset resolution</strong></td>
+<td>Names, images, attributes — entirely off chain.</td>
+</tr>
+<tr>
+<td><strong>Fees and royalties</strong></td>
+<td><strong>Wyvern takes no fee and holds no payment.</strong> The price is a <code>transferFrom</code> inside the atomicizer, made from the taker’s proxy to the maker, and if you want a commission and a royalty, you atomicize three transfers. The fork’s own demo does exactly that.</td>
+</tr>
+<tr>
+<td><strong>Gas policy</strong></td>
+<td>The taker pays; the maker pays nothing; a relayer is your problem.</td>
+</tr>
+<tr>
+<td><strong>Cancellation bookkeeping</strong></td>
+<td>Expiry, salt bumps, fill decrements — all off chain except the fill.</td>
+</tr>
+</tbody></table>
+<h2 id="The-fork"><a href="#The-fork" class="headerlink" title="The fork"></a>The fork</h2><p>This repository is a fork of <code>wyvernprotocol/wyvern-v3</code> with 15 commits of my own work, all in March 2022: Chinese documentation with three diagrams, a new Rinkeby deployment (Rinkeby was an Ethereum test network), a <code>baobab</code> network (the testnet of Klaytn, a separate layer-1 blockchain), a ganache network for local work (ganache runs a private blockchain on your machine), a rewritten test suite, and a fee-splitting demo.</p>
+<p>Two of the changes are not cosmetic, and one of them is a bug I introduced.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">uint256 finalAmount = abi.decode(</span><br><span class="line">    ArrayUtils.arraySlice(data, 616, 32), (uint256));</span><br><span class="line">uint256 commissionAmount = abi.decode(</span><br><span class="line">    ArrayUtils.arraySlice(data, 716, 32), (uint256));</span><br><span class="line">uint256 royaltyAmount = abi.decode(</span><br><span class="line">    ArrayUtils.arraySlice(data, 816, 32), (uint256));</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/StaticMarket.sol:340</code>. Each line slices 32 bytes out of the calldata and decodes them as one number: the price at byte offset 616, the commission at 716, the royalty at 816. Upstream reads the ERC-20 amount at byte offset <strong>68</strong> — the end of a standard <code>transferFrom(address,address,uint256)</code> payload. My version reads 616, 716 and 816, where the amounts live in a <em>three-transfer</em> payload. But the fork’s own <code>checkERC20Side</code> still asserts the standard 68-byte payload, so the two disagree: the price-ratio check degenerates and the fill stops advancing. I widened the offset to support the fee split without updating the assertion that validates it.</p>
+<p>The other change is subtler: in both ERC-1155↔ERC-20 paths, the ERC-20-side assertions are commented out, and <code>anyERC20ForERC1155</code> now requires a <code>DelegateCall</code> where upstream used a <code>Call</code>. The assertions were commented out while I was getting the fee-splitting flow to work, and they never came back.</p>
+<p>The fork also never took upstream’s commit <em>“Send ether with .call to support smart contract takers”</em>, so it still uses <code>transfer(msg.value)</code>. A plain <code>transfer</code> gives a contract receiving ETH only a 2300-gas stipend — a small fixed gas budget — which is not enough for a contract wallet to do anything in response. So a contract taker cannot receive ETH.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>“No payment inside the contract” is the whole design.</strong> The exchange never custodies, never mints, never takes a fee. There is no allowance accounting, no fee logic, no settlement risk, no insolvency surface. The bill arrives immediately: you build fees and royalties yourself, the taker’s <em>proxy</em> must be pre-approved rather than the exchange, and the price is enforced by your static-call code rather than by the protocol.</p>
+<p><strong>The gas shape is unusual.</strong> A match costs two effectful proxy calls, two <code>STATICCALL</code>s carrying large ABI-encoded payloads, optionally a <code>DELEGATECALL</code> into the atomicizer, and byte-wise calldata comparisons. It is cheap <em>for the maker</em> — one proxy setup, then free signatures — and comparatively expensive <em>per match</em>. That is the right shape when setup amortises over many trades, and the wrong shape for a market where every user trades once.</p>
+<p><strong>The audit — a paid review of contract code by a security firm — says something the ecosystem did not want to hear.</strong> <code>audits/v3.0/</code> contains Decenter’s report from December 2018 — three findings, all minor. <code>audits/v3.1/</code> contains only <code>AUDIT_SPEC.md</code>, no published report, and the spec still says v3.1 was not on mainnet. Critically, that spec puts the static-call libraries <strong>out of scope</strong> — “auxiliary library contracts… are the responsibility of the user”.</p>
+<p>Those libraries are exactly where price and asset validation live. <strong>The economic security of a Wyvern market is in code the protocol disclaims.</strong> You are not buying a verified exchange; you are buying a settlement kernel and writing your own validation.</p>
+<p><strong>And it is superseded.</strong> Wyvern v3.1 was never OpenSea’s production protocol — OpenSea ran v2 and migrated to Seaport in 2022–23. A platform built today would choose Seaport (one order covers ERC-1155/721/20, payments are first-class with protocol fees and payouts, criteria resolvers — contracts that decide which assets qualify — replace static calls) plus Permit2 for allowances (Permit2 is a contract that lets one token approval serve many applications).</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Do not fork the protocol to change the platform.</strong> The fork exists because I wanted Chinese docs and a testnet deployment, and both are <em>documentation</em> changes, not protocol changes. Both contract changes I made were attempts to bend a settlement kernel into a fee-splitting marketplace, and both broke an invariant the protocol depended on. If I were starting over, the fork would contain exactly the docs and nothing else.</p>
+<p><strong>Write the static targets first, with tests, before writing the platform.</strong> The static target <em>is</em> the price. <code>getERC20AmountFromCalldata</code> reading the wrong offset is not a subtle bug in a helper — it silently disabled the only thing standing between a taker and a bad price. Every static target needs a test that asserts the exact calldata shape it expects, and the check should live next to the target, not in a different contract.</p>
+<p><strong>Assume you will write the fee logic, and design the order flow around it.</strong> The demo’s three-<code>transferFrom</code> atomicization works, but it means the fee split is encoded in calldata that the protocol does not understand and the audit does not cover. A platform that takes a fee should make the fee a first-class part of the protocol — which is, more or less, what Seaport’s <code>ProtocolFee</code> and payout mechanisms are.</p>
+<p><strong>Do the cancellation work before the listing work.</strong> There is no on-chain cancel in v3.1. A user who wants to pull a listing needs a relayer to submit a transaction for them, and a platform that does not have a relayer will accumulate listings nobody can remove. Decide the relayer policy before you launch, not after the first support ticket about a stale listing.</p>
+<p><strong>And if you are building this in 2026, do not build this.</strong> Use Seaport and Permit2. What Wyvern still teaches is worth more than the code: authorise off chain and verify on chain; separate <em>what is offered</em> from <em>how it is checked</em>; keep the matcher dumb and stateless; make fill, expiry and cancellation accounting explicit; and amortise per-user setup — but only if your users trade repeatedly.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/wyvernprotocol/wyvern-v3">wyvernprotocol/wyvern-v3</a> — the upstream protocol repository this post forks</li>
+<li><a target="_blank" rel="noopener" href="https://wyvernprotocol.com/">Wyvern Protocol</a> — the project’s site</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ProjectOpenSea/seaport">ProjectOpenSea/seaport</a> — the protocol that superseded Wyvern</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ProjectOpenSea/permit2">ProjectOpenSea/permit2</a> — the token-approval contract to pair with Seaport</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-712">EIP-712: typed structured data hashing and signing</a> — how orders are signed</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-1271">EIP-1271: standard signature validation method for contracts</a> — the contract-signature check</li>
+<li><a target="_blank" rel="noopener" href="https://docs.soliditylang.org/">Solidity documentation</a> — the language the contracts are written in</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Four-design-decisions-and-what-each-one-buys"><span class="toc-number">2.1.</span> <span class="toc-text">Four design decisions, and what each one buys</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-order-is-smaller-than-you-expect"><span class="toc-number">2.2.</span> <span class="toc-text">The order is smaller than you expect</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Four-ways-to-be-authorised"><span class="toc-number">2.3.</span> <span class="toc-text">Four ways to be authorised</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-proxy-is-the-user"><span class="toc-number">2.4.</span> <span class="toc-text">The proxy is the user</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-atomicizer-is-a-library-not-a-contract"><span class="toc-number">2.5.</span> <span class="toc-text">The atomicizer is a library, not a contract</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-you-still-have-to-build"><span class="toc-number">4.</span> <span class="toc-text">What you still have to build</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-fork"><span class="toc-number">5.</span> <span class="toc-text">The fork</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">6.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">7.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">8.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

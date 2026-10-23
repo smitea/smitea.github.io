@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="What an indexer actually does, why a swap is not a transfer, and the five things my own EVM client got wrong">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Build an EVM Network and an Explorer for It">
+<meta property="og:url" content="http://shawhuang.com/2024/05/09/evm-network-and-explorer/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="What an indexer actually does, why a swap is not a transfer, and the five things my own EVM client got wrong">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2024-05-09T13:56:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T03:21:43.034Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Build an EVM Network and an Explorer for It</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2026/09/02/security-tools/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2024/03/30/Qujing/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#What-an-EVM-network-is-made-of"><span class="toc-number">1.</span> <span class="toc-text">What an EVM network is made of</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-indexer-is-the-real-product"><span class="toc-number">2.</span> <span class="toc-text">Why the indexer is the real product</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-wrote-half-an-indexer"><span class="toc-number">3.</span> <span class="toc-text">What I wrote: half an indexer</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-a-Uniswap-V3-swap-is-not-a-transfer"><span class="toc-number">3.1.</span> <span class="toc-text">Why a Uniswap V3 swap is not a transfer</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-an-explorer-needs-that-the-RPC-does-not-have"><span class="toc-number">4.</span> <span class="toc-text">What an explorer needs that the RPC does not have</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Concrete-guidance"><span class="toc-number">5.</span> <span class="toc-text">Concrete guidance</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-five-things-my-own-client-got-wrong"><span class="toc-number">6.</span> <span class="toc-text">The five things my own client got wrong</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">7.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">8.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Build an EVM Network and an Explorer for It
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2024-05-09T13:56:00.000Z" itemprop="datePublished">2024-05-09</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>“Build your own EVM network” is three very different projects wearing one phrase — EVM here being the Ethereum Virtual Machine, the runtime that contracts run on — and the difference between them decides everything else. Before writing a line of code you have to know which one you mean:</p>
+<p><strong>What this post is about.</strong> The third of those three projects — the one that is really an indexer over someone else’s node — and what “building an explorer” really costs. You will learn what an EVM network is made of, what an indexer does all day, why a token swap is not a token transfer, and — through my own half-finished module — five concrete mistakes to avoid. The code excerpts are Rust, but every lesson applies in any language.</p>
+<p><strong>What you need to know first.</strong> A <em>block</em> is a batch of transactions, and the blockchain is the chain of those batches. An <em>execution client</em> (geth, reth, besu, erigon) is the program that stores chain state and runs contracts. An <em>indexer</em> is the program that reads the chain through that client’s API and writes what it finds into a database, so it can answer questions the node cannot answer quickly.</p>
+<ul>
+<li><strong>A dev chain.</strong> <code>anvil</code>, <code>hardhat node</code>, <code>geth --dev</code> — an execution client with a synthetic block producer. One transaction, one block, instantly. No reorgs — reorganisations, where the network replaces recently-seen blocks with different ones — no consensus, no peers. Perfect for building an explorer, useless as a model of a real network.</li>
+<li><strong>A private chain with real consensus.</strong> An execution client plus a sealer (the component that packages transactions into blocks), your own <code>genesis.json</code> (the file describing block zero: initial balances and rules), your own chain id (a number distinguishing your chain from all others), your own validator keys. Clique or Besu QBFT — two proof-of-authority rule sets where named signers take turns producing blocks — with two or three signers is the cheapest thing that is genuinely a network.</li>
+<li><strong>“A chain” that is really an indexer over someone else’s node.</strong> An RPC URL (the HTTP address of a node’s API) plus a decoder. This is what most people actually build, and it is the one I built.</li>
+</ul>
+<p>The interesting part of this post is the third one, because it is the part you own: the indexer. And I have a useful piece of honesty to tell, because I wrote half of one and it is not enough.</p>
+<h2 id="What-an-EVM-network-is-made-of"><a href="#What-an-EVM-network-is-made-of" class="headerlink" title="What an EVM network is made of"></a>What an EVM network is made of</h2><p>Four layers, bottom up:</p>
+<ol>
+<li><strong>The execution client</strong> (geth, reth, besu, erigon) — the state machine: world state trie (a hash tree that lets anyone verify the whole state from one root hash), accounts, storage, contract code, and the EVM interpreter. This is the only layer you strictly need for an explorer.</li>
+<li><strong>Consensus and chain selection</strong> — decides which blocks are canonical (the official history everyone agrees on). Post-merge Ethereum runs a separate proof-of-stake client (Lighthouse, Teku) and a deposit contract; private chains usually seal in-process (geth <code>clique</code>, Besu <code>qbft</code>). This layer is the line between “a chain” and “a process that makes blocks”.</li>
+<li><strong>P2P gossip</strong> (devp2p, discv4) — the peer-to-peer protocols nodes use to find each other. Irrelevant for a single node, mandatory for a real network.</li>
+<li><strong>The JSON-RPC surface</strong> — the HTTP and WebSocket interface a node exposes, where you send JSON requests like <code>eth_blockNumber</code>. This is where the explorer lives.</li>
+</ol>
+<p>A solo developer running an explorer for their own chain needs: one execution client, Postgres, an indexer, an HTTP API and a UI. Consensus is optional if dev mode is enough. That is exactly the shape of a Blockscout deployment — <code>indexer</code>, <code>explorer</code>, <code>smart-contract-verifier</code>, <code>postgres</code>, <code>redis</code>.</p>
+<h2 id="Why-the-indexer-is-the-real-product"><a href="#Why-the-indexer-is-the-real-product" class="headerlink" title="Why the indexer is the real product"></a>Why the indexer is the real product</h2><p>An RPC gives you <em>now</em>. An explorer needs <em>then</em>. The moment you ask “what did this address look like in March”, you need a database, and the moment you have a database, you own the hard problems: ordering, reorgs, historical balances, and decoding.</p>
+<p>The indexer’s job has three parts:</p>
+<ol>
+<li><strong>Get new data.</strong> <code>eth_subscribe</code> over WebSocket (a persistent connection the node pushes new data through), or <code>eth_getLogs</code> polling over HTTP, or a hybrid.</li>
+<li><strong>Stitch it together.</strong> A log — an event record a contract writes during a transaction — is not a transaction. A transaction is not a receipt (the per-transaction result record, which carries its logs). You fetch blocks and transactions by range, batch-fetch receipts (the logs come back <em>with</em> the receipts), merge the receipt fields into the transaction, and parse the logs into token transfers and internal transactions.</li>
+<li><strong>Decode it.</strong> A transaction’s <code>input</code> is a 4-byte selector followed by ABI-encoded arguments — the ABI being the contract’s list of functions and argument types. You match the selector against a table of known method ids, then decode the arguments against the verified contract’s ABI.</li>
+</ol>
+<h2 id="What-I-wrote-half-an-indexer"><a href="#What-I-wrote-half-an-indexer" class="headerlink" title="What I wrote: half an indexer"></a>What I wrote: half an indexer</h2><p>My own code lives in <code>bee-modules-eth</code>, a datasource plugin for the <code>bee</code> pipeline runtime. Its own header comment is honest about the scope:</p>
+<blockquote>
+<p>v0 supports a tiny surface: <code>eth_blockNumber</code>, <code>eth_getLogs</code> (log filter) — v0.5+ will add <code>eth_subscribe</code> (websockets) for real-time push. For now we poll, which works against any JSON-RPC endpoint.</p>
+</blockquote>
+<p>The client is a plain <code>reqwest</code> (a Rust HTTP client library) call:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">block_number</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> RpcResult&lt;<span class="type">u64</span>&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">r</span>: <span class="type">String</span> = <span class="keyword">self</span>.<span class="title function_ invoke__">call</span>(<span class="string">&quot;eth_blockNumber&quot;</span>, json!([])).<span class="keyword">await</span>?;</span><br><span class="line">    <span class="comment">// r is hex like &quot;0x1234&quot;</span></span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(<span class="type">u64</span>::<span class="title function_ invoke__">from_str_radix</span>(r.<span class="title function_ invoke__">trim_start_matches</span>(<span class="string">&quot;0x&quot;</span>), <span class="number">16</span>).<span class="title function_ invoke__">unwrap_or</span>(<span class="number">0</span>))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/modules/source.rs:188</code>. The node answers with a hex string; <code>from_str_radix</code> parses it as base 16 after stripping the <code>0x</code>, and <code>unwrap_or(0)</code> falls back to zero on a parse failure. The rest of the client is one more method, <code>get_logs</code>, which builds a filter object (block range, address, topics) and sends it as <code>eth_getLogs</code> — wrapped in an array, <code>json!([filter])</code>, because JSON-RPC passes parameters as an array.</p>
+<p>The polling loop keeps a <em>cursor</em> — a bookmark of the last block already processed:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> <span class="variable">head</span> = <span class="keyword">self</span>.client.<span class="title function_ invoke__">block_number</span>().<span class="keyword">await</span>?;</span><br><span class="line"><span class="keyword">let</span> <span class="variable">cursor</span> = <span class="keyword">self</span>.<span class="title function_ invoke__">cursor</span>();</span><br><span class="line"><span class="keyword">if</span> head &lt; cursor &#123; <span class="keyword">self</span>.<span class="title function_ invoke__">set_cursor</span>(head); <span class="keyword">return</span> <span class="title function_ invoke__">Ok</span>(<span class="type">Vec</span>::<span class="title function_ invoke__">new</span>()); &#125;</span><br><span class="line"><span class="keyword">let</span> <span class="variable">logs</span> = <span class="keyword">self</span>.client.<span class="title function_ invoke__">get_logs</span>(cursor, head, address, topics).<span class="keyword">await</span>?;</span><br><span class="line"><span class="keyword">self</span>.<span class="title function_ invoke__">set_cursor</span>(head + <span class="number">1</span>);</span><br><span class="line"><span class="title function_ invoke__">Ok</span>(logs)</span><br></pre></td></tr></table></figure>
+
+<p><code>src/modules/source.rs:311</code>. This is the body of <code>poll_once</code>, whose doc comment promises: fetch logs between the cursor and the current head, advance the cursor, return the new logs, and return an empty list if the head is behind the cursor. That last branch is a guess about reorgs, and I come back to it below.</p>
+<h3 id="Why-a-Uniswap-V3-swap-is-not-a-transfer"><a href="#Why-a-Uniswap-V3-swap-is-not-a-transfer" class="headerlink" title="Why a Uniswap V3 swap is not a transfer"></a>Why a Uniswap V3 swap is not a transfer</h3><p>The one non-trivial thing the module does is decode Uniswap V3 <code>Swap</code> events — Uniswap V3 is the largest decentralised exchange, and a <em>pool</em> is one contract holding a pair of tokens. The decoding is positional, with no ABI crate, deliberately (“we avoid pulling in <code>ethers-rs</code> or <code>alloy</code>“):</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">fn</span> <span class="title function_">decode</span>(&amp;<span class="keyword">self</span>, log: &amp;LogEntry) <span class="punctuation">-&gt;</span> <span class="type">Option</span>&lt;Swap&gt; &#123;</span><br><span class="line">    <span class="keyword">if</span> !log.address.<span class="title function_ invoke__">eq_ignore_ascii_case</span>(&amp;<span class="keyword">self</span>.pool.address) &#123; <span class="keyword">return</span> <span class="literal">None</span>; &#125;</span><br><span class="line">    <span class="keyword">if</span> log.topics.<span class="title function_ invoke__">is_empty</span>() || !log.topics[<span class="number">0</span>].<span class="title function_ invoke__">eq_ignore_ascii_case</span>(SWAP_EVENT_TOPIC) &#123; <span class="keyword">return</span> <span class="literal">None</span>; &#125;</span><br><span class="line">    <span class="comment">// data layout (ABI-encoded, no padding):</span></span><br><span class="line">    <span class="comment">//   word 0: amount0   (int256)      word 1: amount1   (int256)</span></span><br><span class="line">    <span class="comment">//   word 2: sqrtPriceX96 (uint160)   word 3: liquidity (uint128)</span></span><br><span class="line">    <span class="comment">//   word 4: tick      (int24)</span></span><br><span class="line">    <span class="keyword">if</span> log.data.<span class="title function_ invoke__">len</span>() &lt; <span class="number">5</span> * <span class="number">32</span> &#123; <span class="keyword">return</span> <span class="literal">None</span>; &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>src/modules/uniswap_v3.rs:85</code>. The first two lines are guards: is this log from our pool, and is its first topic — the indexed field whose hash identifies the event type — the <code>Swap</code> topic. The comment documents the data payload: five 32-byte words, so <code>5 * 32</code> (160 bytes) is the minimum length. The rest of the function slices those five words and casts them into the <code>Swap</code> fields.</p>
+<p>An indexer needs this because a V3 swap is <em>not</em> a plain transfer, and this is the part that surprises people:</p>
+<ul>
+<li>The pool contract emits <code>Swap</code>; the ERC-20 <code>Transfer</code> events (ERC-20 is the standard for interchangeable tokens) happen <em>inside</em> it, so a transfer-only indexer sees two transfers and no swap.</li>
+<li>The <strong>price exists only in <code>sqrtPriceX96</code></strong> — it is a square root, scaled by 2⁹⁶, and the actual price is <code>(√P)² · 10^(d0−d1)</code>.</li>
+<li>The <strong>buy/sell side is the sign</strong> of <code>amount0</code> versus <code>amount1</code>.</li>
+<li>The USD volume needs <strong>both tokens’ decimals</strong> — a token’s number of decimal places, 6 for USDC and 18 for ETH — and my code hardcodes them:</li>
+</ul>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">let</span> (amount_in, amount_out, side) = <span class="keyword">if</span> amount0 &gt; <span class="number">0.0</span> &#123;</span><br><span class="line">    (amount0 / <span class="number">1e6</span>, amount1.<span class="title function_ invoke__">abs</span>() / <span class="number">1e18</span>, <span class="string">&quot;buy&quot;</span>)</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    (amount1.<span class="title function_ invoke__">abs</span>() / <span class="number">1e18</span>, amount0.<span class="title function_ invoke__">abs</span>() / <span class="number">1e6</span>, <span class="string">&quot;sell&quot;</span>)</span><br><span class="line">&#125;;</span><br><span class="line"><span class="keyword">let</span> <span class="variable">price</span> = <span class="title function_ invoke__">price_of_swap</span>(&amp;swap, <span class="number">6</span>, <span class="number">18</span>);</span><br></pre></td></tr></table></figure>
+
+<p><code>src/factory.rs:381</code>. Dividing by 10⁶ or 10¹⁸ converts raw token units into human units, and which side is positive decides whether the trade is a buy or a sell. The decimals are passed straight into <code>price_of_swap</code> — hardcoded, not read from the tokens.</p>
+<h2 id="What-an-explorer-needs-that-the-RPC-does-not-have"><a href="#What-an-explorer-needs-that-the-RPC-does-not-have" class="headerlink" title="What an explorer needs that the RPC does not have"></a>What an explorer needs that the RPC does not have</h2><p>This is the list I did not build, and every item on it is a real feature of Blockscout, which I have a checkout of on this machine.</p>
+<ul>
+<li><strong>History.</strong> Blockscout’s schema — its database tables — is the honest checklist: <code>blocks, transactions, logs, token_transfers, internal_transactions, addresses, address_coin_balances, address_token_balances, token_instances, smart_contracts, contract_methods, transaction_actions, transaction_stats, validators, withdrawals, pending_block_operations, market_history, address_names, address_tags</code>.</li>
+<li><strong>Token metadata.</strong> <code>symbol()</code> is <code>0x95d89b41</code>, <code>decimals()</code> is <code>0x313ce567</code> — read with <code>eth_call</code> (a read-only contract query) at index time. You need an ERC-20 ABI for that; verified sources give you more.</li>
+<li><strong>Traces and internal transactions.</strong> A <em>trace</em> is the record of the internal calls one transaction made, and it is not in standard RPC. Geth offers <code>debug_traceTransaction</code> with a custom JS tracer; Besu and Nethermind offer <code>trace_replayBlockTransactions</code>. Blockscout ships one variant module per client.</li>
+<li><strong>Reorgs.</strong> The naive indexer assumes blocks are final. Blockscout’s answer: a <code>consensus</code> boolean on <code>blocks</code> (orphans — blocks that lost the race — are stored with <code>consensus = false</code> and the UI filters them), and a realtime fetcher that treats <code>number &lt;= previous_number</code> as a reorg, sleeps five seconds, and re-imports.</li>
+<li><strong>Gas and price statistics.</strong> Precomputed into <code>transaction_stats</code> and an <code>AverageBlockTime</code> counter — not computed per request.</li>
+<li><strong>Balances at a historical block.</strong> The classic trap: <code>eth_getBalance(addr, blockNumber)</code> needs an <em>archive</em> node, one configured to keep state at every historical block. Blockscout refuses to depend on one. It keeps its own <code>address_coin_balances</code> rows keyed by <code>block_number</code> and answers “balance as of block N” with <em>the last snapshot at or before N</em>.</li>
+</ul>
+<h2 id="Concrete-guidance"><a href="#Concrete-guidance" class="headerlink" title="Concrete guidance"></a>Concrete guidance</h2><p><strong>Polling versus subscribing.</strong> Polling <code>eth_blockNumber</code> plus <code>eth_getLogs</code> every one to two seconds is the right default: provider-agnostic, trivially restartable, no WebSocket reconnect logic. It lags by up to one interval and burns rate limit. <code>eth_subscribe</code> needs a WebSocket endpoint that hosted providers often disable, and <code>newHeads</code> gives you <em>only the header</em> — you still have to fetch the full block. The best answer is both, and Blockscout does exactly that: subscribe, and on a socket failure log it and keep polling, and re-schedule a poll on every event so a dead socket can never silently stall the indexer.</p>
+<p><strong>Chunk your log queries.</strong> Providers cap <code>eth_getLogs</code> by range and by result count. Always split.</p>
+<p><strong>Store and index like a database, not a cache.</strong> Primary key by hash; secondary indexes on <code>block_number</code>, <code>(address_hash, block_number)</code>, <code>(transaction_hash, log_index)</code>. Keep a <code>last_indexed_block</code> <em>and</em> a missing-ranges table, so a crash mid-range does not lose blocks; a catch-up worker fills the gaps back to genesis.</p>
+<p><strong>Never hit the node on a page view.</strong> The trick Blockscout uses: expose your <em>own</em> JSON-RPC endpoint that is <strong>database-backed</strong> — <code>Explorer.EthRPC</code> answers <code>eth_blockNumber</code>, <code>eth_getBalance</code> and <code>eth_getLogs</code> from Postgres — so wallets and dApps point at your explorer instead of at your node.</p>
+<p><strong>If the chain is yours, write the genesis.</strong> <code>chainId</code> (pick something unique), <code>gasLimit</code>, <code>difficulty: 0</code>, <code>baseFeePerGas</code> if you want EIP-1559 (the fee rules that replaced a single gas price), the <code>shanghai</code>/<code>cancun</code> timestamps, and an <code>alloc</code> that prefunds your deployer. Prefund in the genesis, not by mining — the <code>alloc</code> is what makes <code>eth_getBalance</code> work on block zero. With Hardhat, add a network entry tagged <code>private_chain</code>; my own <code>ens-contracts</code> config does exactly that for <code>localhost</code>, <code>lixbtest</code> (chain id 2888) and <code>lixb</code> (1888).</p>
+<h2 id="The-five-things-my-own-client-got-wrong"><a href="#The-five-things-my-own-client-got-wrong" class="headerlink" title="The five things my own client got wrong"></a>The five things my own client got wrong</h2><p>I would rather list these than pretend the module is a foundation.</p>
+<p><strong>1. It is not an explorer and cannot become one.</strong> <code>LogEntry</code> carries <code>block_number, log_index, address, topics, data</code> — no block hash, no transaction hash, no receipt. There is no join key back to a transaction. Everything an explorer page shows is missing.</p>
+<p><strong>2. The reorg handling is a guess.</strong> <code>poll_once</code> resets the cursor when the head goes backwards, but it compares <em>numbers</em>, never hashes, so it cannot tell a reorg from a stall. Worse, the factory’s <code>poll_loop</code> only ever advances <code>next_block</code>, so if the head regresses, that range is <strong>skipped permanently</strong> and the swaps in it stay in the feed forever.</p>
+<p><strong>3. Nothing is persisted.</strong> The cursor is an in-memory <code>Mutex&lt;u64&gt;</code> — a value only one thread may touch at a time. A restart re-reads from the head. The <code>bee</code> project has a Postgres module, but the eth module never touches a database.</p>
+<p><strong>4. <code>&quot;tx&quot;</code> is not a transaction hash.</strong> The emitted JSON has <code>&quot;tx&quot;: format!(&quot;0x&#123;:x&#125;&quot;, swap.log_index)</code> — that is the <em>log index</em>. There is no transaction hash in the data model to put there, and the field name lies about what it contains.</p>
+<p><strong>5. One hardcoded pool.</strong> The decoder is built for the USDC/WETH pair (a stablecoin and wrapped ether) at 0.05% and nothing else. Every other pool decodes to <code>None</code> and the pair label is literally <code>&quot;Unknown&quot;</code>.</p>
+<p>Also missing: no <code>eth_subscribe</code>, no traces, no ABI decoding of transaction <code>input</code>, no historical state, no balances, no token metadata (the decimals are hardcoded).</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Start from the queries, not from the chain.</strong> The right way to design an explorer is to write the SQL you want to answer first — “transfers to this address in this block range”, “balance as of block N”, “the internal call tree of this transaction” — and then work out what the indexer must store to make them cheap. I started from the RPC instead, and ended up with a module that answers one question well.</p>
+<p><strong>Store blocks, transactions, receipts and logs, and derive the rest.</strong> The derivation is where the product is: token transfers from logs, internal transactions from traces, balances from deltas, statistics from aggregates. Store the raw facts; the derived views can change.</p>
+<p><strong>Handle reorgs properly, with hashes.</strong> Compare block hashes, not heights. Keep orphaned blocks, mark them, and let the read path filter them. The height comparison in my code is the kind of shortcut that looks fine until the first time a chain reorgs at the exact moment you are indexing it.</p>
+<p><strong>And if you want a real explorer, do not write one.</strong> Blockscout exists, it is in Elixir, it is deployed on every chain you care about, and it is configured by a dozen environment variables. My own checkout of it has exactly two local edits — a <code>@spec</code> line and a <code>SUBNETWORK=Coindex 2.0</code> setting. The interesting engineering is in <em>using</em> it, and in the narrow slice of chain-specific code around it.</p>
+<p>What is worth writing yourself is the narrow slice: the module that decodes the protocol events your chain actually cares about, plugged into an indexer that already handles history, balances, traces and reorgs. That is the shape of my module — and it is a good shape, as long as it is honest about being a decoder and not an indexer.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/blockscout/blockscout">blockscout/blockscout</a> — the open-source explorer this post compares against</li>
+<li><a target="_blank" rel="noopener" href="https://ethereum.org/en/developers/apis/json-rpc/">ethereum.org: JSON-RPC API</a> — the node API the indexer talks to</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ethereum/execution-apis">ethereum/execution-apis</a> — the specification of those JSON-RPC methods</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ethereum/go-ethereum">ethereum/go-ethereum</a> — geth, the execution client referenced throughout</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/foundry-rs/foundry">foundry-rs/foundry</a> — home of <code>anvil</code>, the dev chain</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/Uniswap/v3-core">Uniswap/v3-core</a> — the pool contracts whose <code>Swap</code> events the decoder parses</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/reqwest/latest/reqwest/">reqwest documentation</a> — the Rust HTTP client the module uses</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#What-an-EVM-network-is-made-of"><span class="toc-number">1.</span> <span class="toc-text">What an EVM network is made of</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-indexer-is-the-real-product"><span class="toc-number">2.</span> <span class="toc-text">Why the indexer is the real product</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-wrote-half-an-indexer"><span class="toc-number">3.</span> <span class="toc-text">What I wrote: half an indexer</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-a-Uniswap-V3-swap-is-not-a-transfer"><span class="toc-number">3.1.</span> <span class="toc-text">Why a Uniswap V3 swap is not a transfer</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-an-explorer-needs-that-the-RPC-does-not-have"><span class="toc-number">4.</span> <span class="toc-text">What an explorer needs that the RPC does not have</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Concrete-guidance"><span class="toc-number">5.</span> <span class="toc-text">Concrete guidance</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-five-things-my-own-client-got-wrong"><span class="toc-number">6.</span> <span class="toc-text">The five things my own client got wrong</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">7.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">8.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

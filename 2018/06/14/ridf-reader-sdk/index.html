@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="A RFID reader SDK: one Netty pipeline over TCP and serial, a promise-based API, and a JavaFX reference app">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Write a Device Control SDK">
+<meta property="og:url" content="http://shawhuang.com/2018/06/14/ridf-reader-sdk/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="A RFID reader SDK: one Netty pipeline over TCP and serial, a promise-based API, and a JavaFX reference app">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2018-06-14T02:44:00.000Z">
+<meta property="article:modified_time" content="2026-10-22T18:11:51.400Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Write a Device Control SDK</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2019/05/16/collect-metrics-over-ssh/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#One-pipeline-for-both-transports"><span class="toc-number">2.1.</span> <span class="toc-text">One pipeline for both transports</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-custom-decoder-because-the-obvious-one-was-too-slow"><span class="toc-number">2.2.</span> <span class="toc-text">A custom decoder, because the obvious one was too slow</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Correlation-by-opcode-because-the-protocol-has-no-id"><span class="toc-number">2.3.</span> <span class="toc-text">Correlation by opcode, because the protocol has no id</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-promise-pattern"><span class="toc-number">2.4.</span> <span class="toc-text">The promise pattern</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-desktop-app"><span class="toc-number">3.</span> <span class="toc-text">The desktop app</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Write a Device Control SDK
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2018-06-14T02:44:00.000Z" itemprop="datePublished">2018-06-14</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>An RFID vendor ships hardware with a firmware-defined binary protocol. Every downstream customer — a warehouse integrator, a POS vendor, an internal tool — then re-implements the same things: frame parsing, the checksum, the opcode table, the timeout behaviour, and the fact that the device ignores a command if you send it too soon.</p>
+<p>This repository is the host-side layer (the project calls it 上位机, “the PC-side program that drives the device”): <code>reader-sdk-core</code> (a protocol client) and <code>reader-sdk-example-desktop</code> (a reference GUI). It is a good exercise, because a device SDK has to answer three questions that ordinary library code never does: <strong>how do I talk to the wire</strong>, <strong>how do I make an asynchronous command look synchronous to the caller</strong>, and <strong>how do I show the result on a screen without freezing it</strong>.</p>
+<p><strong>What this post is about.</strong> It walks through one RFID reader SDK and the desktop console that drives it: what the protocol looks like on the wire, why one networking framework serves both a TCP socket and a serial port, how the SDK matches a reply to the command that asked for it, and how a promise API keeps the GUI responsive. First, three words: a <em>protocol</em> is an agreed sequence of bytes, a <em>frame</em> is one message in it, an <em>opcode</em> is the byte that says which command a frame is about.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The device speaks a small binary protocol over either TCP or a serial line. TCP carries bytes between two machines over a network, here through a small WiFi-to-Ethernet bridge box; a serial line is a direct cable, one bit at a time, into the device. The caller — a GUI, a service, a test harness — should not care which one it gets.</p>
+<p>Three constraints shaped the design, and all three come from talking to real hardware:</p>
+<ul>
+<li><strong>The device is slow to accept a new command.</strong> It needs about 120 ms to prepare after the previous one. Send too early and the command is silently dropped.</li>
+<li><strong>The device pushes a lot of data.</strong> An inventory scan emits hundreds of tag frames per second, and the decoder has to keep up.</li>
+<li><strong>The device is not a web server.</strong> There is no request id, no sequence number, no correlation token (a value that ties a reply back to the request that caused it). The reply carries an opcode and you have to know which command it belongs to.</li>
+</ul>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><h3 id="One-pipeline-for-both-transports"><a href="#One-pipeline-for-both-transports" class="headerlink" title="One pipeline for both transports"></a>One pipeline for both transports</h3><p>Netty does the heavy lifting. Netty is a Java networking library built around a <em>channel</em> (one open connection) and a <em>pipeline</em> (an ordered list of handlers every byte passes through). The same three handlers are installed on a TCP socket and on a serial port:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">ChannelPipeline</span> <span class="variable">cp</span> <span class="operator">=</span> socketChannel.pipeline();</span><br><span class="line">cp.addLast(<span class="keyword">new</span> <span class="title class_">ReaderEncoder</span>());</span><br><span class="line">cp.addLast(<span class="keyword">new</span> <span class="title class_">ReaderDecoder</span>(<span class="number">0xBB</span>, <span class="number">0x0D</span>, <span class="number">0x0A</span>));</span><br><span class="line">cp.addLast(<span class="keyword">new</span> <span class="title class_">ReaderClientHandler</span>());</span><br></pre></td></tr></table></figure>
+
+<p><code>addLast</code> appends to the end of the list, so bytes flow encoder → decoder → handler: the encoder makes the bytes, the decoder parses them back into frames, the handler hands frames to the application. The three numbers in the decoder are the frame’s start byte (<code>0xBB</code>) and its two end bytes (<code>0x0D</code>, <code>0x0A</code>).</p>
+<p><code>TcpConnection.java:30</code>.</p>
+<p>The serial side has the same shape, on Netty’s RXTX channel. <code>SerialParam</code> extends <code>RxtxDeviceAddress</code>, which extends <code>java.net.SocketAddress</code> — the trick that lets one <code>bootstrap.connect(option)</code> call work for both transports. Its four parameters: baud rate (line speed in bits per second), data bits, stop bits, and parity (an extra bit to spot corruption).</p>
+<p>The TCP side is tuned for the frame rate. The receive buffer is allocated by <code>AdaptiveRecvByteBufAllocator(6, 100, 1024)</code>: the minimum of 6 bytes is the smallest legal frame (<code>head + type + len + crc + end1 + end2</code>), the initial 1024 is the largest single response, and the comment explains why the buffer is not bigger — a larger receive buffer <em>slows the EPC read rate down</em>.</p>
+<p>Above this sits <code>AbstractConnection&lt;Option extends SocketAddress&gt;</code>, which owns everything not transport-specific: the command/response map, the promise plumbing, the listener registration. Two subclasses supply only a bootstrap, <code>ReaderConnectionBuild.createSerialConnection()</code> and <code>createTcpConnection()</code> are the factory entry points, and the concrete type is hidden behind <code>IReaderConnection</code>.</p>
+<h3 id="A-custom-decoder-because-the-obvious-one-was-too-slow"><a href="#A-custom-decoder-because-the-obvious-one-was-too-slow" class="headerlink" title="A custom decoder, because the obvious one was too slow"></a>A custom decoder, because the obvious one was too slow</h3><p>The frame is:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">HEAD(0xBB) | TYPE | LEN | DATA | CRC | END1(0x0D) | END2(0x0A)</span><br></pre></td></tr></table></figure>
+
+<p>Each box is one part of a message: start byte, opcode, payload length, payload, checksum byte, two-byte terminator. Because there is a length field, Netty’s <code>LengthFieldBasedFrameDecoder</code> would be the obvious choice — it was not fast enough:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">for</span> (<span class="type">int</span> <span class="variable">bit</span> <span class="operator">=</span> readerIndex; bit &lt; length; bit++) &#123;</span><br><span class="line">    <span class="type">byte</span> <span class="variable">aByte</span> <span class="operator">=</span> in.getByte(bit);</span><br><span class="line">    <span class="keyword">if</span> ((aByte &amp; <span class="number">0xFF</span>) == <span class="built_in">this</span>.head) &#123; headIndex = bit; &#125;</span><br><span class="line">    <span class="keyword">if</span> (aByte == <span class="built_in">this</span>.end1 &amp;&amp; (bit + <span class="number">1</span> &lt; length)) &#123;</span><br><span class="line">        <span class="type">byte</span> <span class="variable">end2</span> <span class="operator">=</span> in.getByte(bit + <span class="number">1</span>);</span><br><span class="line">        <span class="keyword">if</span> (end2 == <span class="built_in">this</span>.end2) &#123; endIndex = bit; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The loop walks the buffer one byte at a time looking for the two markers: <code>in.getByte(bit)</code> reads a byte by index, and <code>&amp; 0xFF</code> turns a signed Java byte into the unsigned 0–255 so it can be compared with the head byte. When a head and a terminator have both been seen, the bytes between them are emitted.</p>
+<p><code>protocol/ReaderDecoder.java:48</code>. The source comment says the built-in delimiter decoder could not meet the required decode rate — at several hundred frames per second that is a real constraint, not a preference.</p>
+<p>The one thing it gets wrong: the scan bound is <code>in.capacity()</code> rather than <code>in.readableBytes()</code>. It works, but it reads past the data that is actually there.</p>
+<h3 id="Correlation-by-opcode-because-the-protocol-has-no-id"><a href="#Correlation-by-opcode-because-the-protocol-has-no-id" class="headerlink" title="Correlation by opcode, because the protocol has no id"></a>Correlation by opcode, because the protocol has no id</h3><p>This surprises people coming from HTTP. The device’s reply carries no request id. Instead, each command knows which reply opcode it waits for — by convention <code>request | 0x80</code>, where setting the bit 128 turns a command’s opcode into its reply’s opcode, so a command with type byte <code>0x07</code> is answered by type byte <code>0x87</code>.</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title function_">send</span><span class="params">(Protocol protocol)</span> &#123;</span><br><span class="line">    <span class="keyword">try</span> &#123; Thread.sleep(<span class="number">120</span>); &#125; <span class="keyword">catch</span> (InterruptedException e) &#123; e.printStackTrace(); &#125;</span><br><span class="line">    <span class="type">ReaderProtocol</span> <span class="variable">frame</span> <span class="operator">=</span> protocol.writeProtocol();</span><br><span class="line">    <span class="keyword">if</span> (frame.getCrc() == <span class="number">0</span>) &#123; HexTools.crc16(frame); &#125;</span><br><span class="line">    writeChannel.writeAndFlush(frame);</span><br><span class="line">    protocolHandlerMap.put(protocol.resultType(), protocol);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>Four things happen in order: the thread sleeps 120 ms to let the device prepare; <code>writeProtocol()</code> packs the command into bytes; <code>HexTools.crc16</code> fills in the checksum if it is still zero; and the frame is flushed <em>before</em> the handler is registered in <code>protocolHandlerMap</code>, the map from reply opcode to the waiting command. The original also throws <code>UnconnectedException</code> when there is no channel.</p>
+<p><code>AbstractConnection.java:294</code>.</p>
+<p><strong>The map is keyed by opcode, so only one in-flight request per opcode is supported.</strong> Send the same command twice before the first reply arrives and the second overwrites the first handler, and the first promise never completes.</p>
+<p>The order matters: the frame is flushed <em>before</em> the handler is registered, so a fast reply can be dispatched before the map contains the entry. The 120 ms sleep hides this in practice.</p>
+<h3 id="The-promise-pattern"><a href="#The-promise-pattern" class="headerlink" title="The promise pattern"></a>The promise pattern</h3><p>Every command returns a future instead of a value, because the device is slow and the caller should not block. A <em>promise</em> is an object that holds a result that has not arrived yet and hands it to whoever asks for it later. The behaviour that makes it usable is the late-subscriber replay:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title function_">then</span><span class="params">(Callback&lt;T&gt; callback)</span> &#123;</span><br><span class="line">    <span class="type">boolean</span> <span class="variable">fire</span> <span class="operator">=</span> <span class="literal">false</span>;</span><br><span class="line">    <span class="keyword">synchronized</span>(<span class="built_in">this</span>) &#123;</span><br><span class="line">        next = callback;</span><br><span class="line">        <span class="keyword">if</span> (latch.getCount() == <span class="number">0</span>) &#123; fire = <span class="literal">true</span>; &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="keyword">if</span> (fire) &#123; <span class="keyword">if</span> (error != <span class="literal">null</span>) callback.onFailure(error) <span class="keyword">else</span> callback.onSuccess(value); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>then</code> attaches a callback. The <code>latch</code> is a <code>CountDownLatch</code>, a one-shot counter that reaches zero when the result is set, so <code>getCount() == 0</code> means “the answer already arrived” — and then the callback fires at once with the stored value or error. Without that replay, the race between “the reply lands” and “the caller attaches a handler” would lose the result.</p>
+<p><code>Promise.java:64</code>. The promise has one continuation slot (<code>next</code>), a value or an error field, and a <code>CountDownLatch</code> for the blocking <code>await()</code> path. It is completed on the Netty event loop thread by the response dispatcher: when a frame arrives, the dispatcher looks up the reply’s opcode in <code>protocolHandlerMap</code> and calls <code>readProtocol</code> on the command it finds. Errors follow a convention: the first data byte of a reply is <code>0x01</code> for success, anything else a failure code that becomes a <code>SetException</code> / <code>GetException</code> / <code>OutOfRangeException</code>.</p>
+<p>There are two error channels in total: per-command rejection through the promise, and device-level errors through a separate <code>0xFF</code> frame that arrives at any time and is delivered to an <code>IListenter&lt;ErrorEvent&gt;</code>.</p>
+<h2 id="The-desktop-app"><a href="#The-desktop-app" class="headerlink" title="The desktop app"></a>The desktop app</h2><p>The desktop module is <strong>JavaFX 8</strong> (FXML + CSS), not Swing. JavaFX is Java’s desktop toolkit: the screen is described in XML (FXML), styled with CSS, and updated by binding Java objects to widgets. The window is a reader console: a toolbar (start/stop scan, single scan, read tag data, connect/disconnect, device settings), an EPC filter field, a <code>TableView</code> of antenna / EPC / PC / RSSI / count / timestamp columns, antenna on-off checkboxes, read and write power, a beep toggle, and a status bar with the connection state, the last message, a clock and the firmware version. Three dialogs: connection (TCP host/port or serial port with baud/databits/stopbits/parity), tag operations (read/write, QT parameters for Impinj Monza 4QT, lock/unlock with kill passwords), and device configuration (GPIO in/out, frequency hop list, Gen2 Q algorithm, frequency region, work times, EAS, heartbeat, and more).</p>
+<p>The interesting part is the threading, because it is where GUI code usually goes wrong. A GUI has one <em>UI thread</em> that draws the screen, and everything else must stay off it.</p>
+<p><strong>Connect happens off the UI thread</strong>, on a small thread pool, and the promise is awaited with a deadline of 10 seconds: the controller submits a task to that pool, calls <code>tcpConnection.connect(inetSocketAddress).await(10, TimeUnit.SECONDS)</code>, and stores the command in an <code>AtomicReference</code> (a holder several threads may read and write safely). If the connect does not finish in ten seconds, the await returns no result.</p>
+<p><strong>Tag events arrive on the Netty event loop</strong> — the thread that owns the socket — and are pushed through a small thread pool, then marshalled onto the FX thread with <code>Platform.runLater(...)</code>: the listener bumps a counter, formats the time, and finds the first tag mapper whose EPC matches the tag’s. <code>Platform.runLater</code> is JavaFX for “run this bit of code on the UI thread, later”.</p>
+<p><strong>Command callbacks need the same marshalling</strong>, because the promise completes on the I/O thread: every <code>then()</code> callback that touches a control wraps its body in <code>Platform.runLater</code>.</p>
+<p>The data-binding approach is the other JavaFX lesson: <code>TagMapper</code> wraps <code>IntegerProperty</code> / <code>StringProperty</code> / <code>DoubleProperty</code>, so the <code>TableView</code> binds directly to the model and no cell is rendered by hand.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>Netty for a 115200-baud serial line is a real trade.</strong> The payoff: one pipeline, one codec and one handler serve both links, and the RXTX channel is a drop-in because it extends Netty’s <code>OioByteStreamChannel</code>. The costs: <code>netty-all</code> drags in the whole reactor stack (HTTP, DNS, epoll) for a serial port; the RXTX transport is Netty’s legacy OIO path, deprecated in later Netty versions; and RXTX itself is a 1990s-era project, unmaintained for years, whose macOS build is 32-bit only and cannot load on a modern Apple Silicon JVM. A modern alternative is jSerialComm behind a small <code>Channel</code>-shaped adapter.</p>
+<p><strong>There is no reflection-based serialisation, and that is the right call.</strong> Every command hand-packs its own bytes:</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="type">byte</span> <span class="variable">data3</span> <span class="operator">=</span> (<span class="type">byte</span>) gen2.getqValue().getValue();</span><br><span class="line"><span class="type">byte</span> <span class="variable">data2</span> <span class="operator">=</span> (<span class="type">byte</span>) (((gen2.getStartQ() &lt;&lt; <span class="number">4</span>) &amp; <span class="number">0xF0</span>) | (gen2.getMinQ() &amp; <span class="number">0x0F</span>));</span><br><span class="line"><span class="type">byte</span> <span class="variable">data1</span> <span class="operator">=</span> (<span class="type">byte</span>) ((gen2.getMaxQ() &lt;&lt; <span class="number">4</span>) &amp; <span class="number">0xF0</span>);</span><br><span class="line"><span class="type">byte</span> <span class="variable">data0</span> <span class="operator">=</span> (<span class="type">byte</span>) ((gen2.getSelect().getValue() &lt;&lt; <span class="number">6</span>) | (gen2.getSession().getValue() &lt;&lt; <span class="number">4</span>) | (gen2.getTarget().getValue() &lt;&lt; <span class="number">3</span>));</span><br><span class="line"><span class="keyword">return</span> <span class="keyword">new</span> <span class="title class_">ReaderProtocol</span>(<span class="number">0x07</span>, <span class="number">0x04</span>, <span class="keyword">new</span> <span class="title class_">byte</span>[]&#123;data3, data2, data1, data0&#125;);</span><br></pre></td></tr></table></figure>
+
+<p>Each of these four bytes packs several small settings into eight bits: <code>&lt;&lt; 4</code> shifts a value left four bits so it sits in the high half, <code>&amp; 0xF0</code> keeps the high four bits, <code>&amp; 0x0F</code> keeps the low four, and <code>|</code> (bitwise OR) glues two halves together. The last line builds the frame: opcode <code>0x07</code>, payload length <code>4</code>, and the four packed bytes.</p>
+<p><code>ReaderClient.java:293</code>. An annotation-driven codec would break the first time the firmware’s field order differs from a Java bean’s natural layout — and for <code>Gen2</code> and <code>LockParam</code> it does. The cost is duplication: the same bit-twiddling appears in <code>writeProtocol()</code> and <code>readProtocol()</code>, and <code>ReaderClient</code> has grown to nearly 2,000 lines of near-identical anonymous <code>Protocol</code> classes.</p>
+<p><strong>The “CRC” is not a CRC.</strong> <code>HexTools.crc16</code> is a plain additive byte sum of <code>type + len + data</code>, and the receiver <em>discards</em> the CRC byte it reads. Integrity is delegated to the firmware, which sends a <code>0xFF</code> frame with a <code>CRC_ERROR</code> code when it does not like what it got. The test file still notes that the vendor’s documentation has the checksum byte wrong.</p>
+<p><strong><code>then()</code> has no timeout variant.</strong> <code>await(n, unit)</code> exists on <code>Future</code>, but the callback form does not, so a command whose response never arrives leaves the promise pending forever and the GUI never updates — with no error shown to the user. For a device on a lossy serial line or behind a WiFi bridge, a per-command deadline is not optional.</p>
+<p><strong>And the 120 ms sleep runs on the UI thread.</strong> <code>send()</code> sleeps before writing, and <code>send()</code> is called from the GUI’s command methods, so every button press freezes the interface for 120 ms.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Return <code>CompletableFuture</code>.</strong> The whole <code>promise</code> package is vendored FuseSource code — Apache-2.0 header, 2010–2012 copyright — and it implements one continuation, no timeout and no executor choice. <code>CompletableFuture</code> has all of that, is in the JDK since Java 8, and the desktop module already targets Java 8. A <code>thenAcceptAsync(callback, executor)</code> would also let the SDK offer a UI-thread executor instead of making every caller remember <code>Platform.runLater</code>.</p>
+<p><strong>Fix the correlation.</strong> A request id in the frame — the protocol has room for it in <code>LEN</code>/<code>DATA</code> — or a per-command queue instead of a map keyed by opcode would remove the “one in-flight request per opcode” limit. And the handler registration must happen <em>before</em> the flush, not after.</p>
+<p><strong>Give the SDK a real timeout.</strong> Every command should carry a deadline and reject with a <code>TimeoutException</code>. The <code>timeout = 3000</code> field in <code>AbstractConnection</code> suggests the intent existed and was never wired up.</p>
+<p><strong>Move the 120 ms device-busy delay into the transport</strong>, where it belongs, as a scheduled write rather than a <code>Thread.sleep</code> on the caller’s thread. That one change removes the UI freeze and the thread-safety question together.</p>
+<p><strong>Split <code>ReaderClient</code>.</strong> Sixty-plus command methods in one 2,000-line class, each with two hand-written protocol implementations, is the part that will hurt when the vendor adds a command. One class per command, or a table-driven codec, would fix it.</p>
+<p><strong>And test the parts that are pure logic.</strong> The encoder, the decoder, the checksum and the promise have no dependencies on hardware and no tests at all — the only test class in the repository is a manual integration harness that needs a real reader on a hard-coded IP, and the build is configured with <code>&lt;skipTests&gt;true&lt;/skipTests&gt;</code>, so even that never runs. A unit test for the decoder would have caught the <code>capacity()</code>-versus-<code>readableBytes()</code> bug at once.</p>
+<p>The part of this project I would keep exactly as it is: the layering. Transport, protocol, promise and domain are separated; the factory hides the concrete connection type; the <code>Protocol</code> strategy makes each command self-contained; the GUI never touches a byte; and the <code>entity/</code> model is a deliverable in its own right, because it tells a customer what the device can be asked to do — in their language, with the device’s quirks documented in Javadoc (“只适用于单独模块，不适用设备” — applies only to the standalone module, not to the device; “仅对 Impinj 的 Monza 4QT 标签有效” — valid only for Impinj Monza 4QT tags). That knowledge only comes from sitting with real hardware, and it is the reason an SDK is worth more than a protocol document.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/smitea/sdk-sk4">sdk-sk4</a> — the SDK this post describes</li>
+<li><a target="_blank" rel="noopener" href="https://netty.io/">Netty</a> — the networking framework behind the SDK’s pipelines</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/rxtx/rxtx">RXTX</a> — the serial-port library behind the RXTX channel</li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/javase/8/docs/api/">Java 8 API documentation</a> — <code>SocketAddress</code>, <code>CountDownLatch</code>, <code>CompletableFuture</code></li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc793">TCP (RFC 793)</a> — the protocol under the TCP transport</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#One-pipeline-for-both-transports"><span class="toc-number">2.1.</span> <span class="toc-text">One pipeline for both transports</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-custom-decoder-because-the-obvious-one-was-too-slow"><span class="toc-number">2.2.</span> <span class="toc-text">A custom decoder, because the obvious one was too slow</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Correlation-by-opcode-because-the-protocol-has-no-id"><span class="toc-number">2.3.</span> <span class="toc-text">Correlation by opcode, because the protocol has no id</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-promise-pattern"><span class="toc-number">2.4.</span> <span class="toc-text">The promise pattern</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-desktop-app"><span class="toc-number">3.</span> <span class="toc-text">The desktop app</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">4.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">5.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">6.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Five components and a month to deploy, or a folder of scripts nobody can page on — the third option, where the cluster behaves like one computer.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Build a Distributed Pipeline Runtime">
+<meta property="og:url" content="http://shawhuang.com/2026/10/22/bee/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Five components and a month to deploy, or a folder of scripts nobody can page on — the third option, where the cluster behaves like one computer.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-10-22T11:00:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:52:08.326Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Build a Distributed Pipeline Runtime</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2026/10/11/wipwn/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-design-looks-like-this"><span class="toc-number">2.</span> <span class="toc-text">Why the design looks like this</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-Lua-for-the-scripting-path"><span class="toc-number">2.1.</span> <span class="toc-text">Why Lua for the scripting path</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-event-path"><span class="toc-number">3.1.</span> <span class="toc-text">The event path</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Failover"><span class="toc-number">3.2.</span> <span class="toc-text">Failover</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#One-interface-two-kinds-of-pipeline"><span class="toc-number">3.3.</span> <span class="toc-text">One interface, two kinds of pipeline</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#In-the-code"><span class="toc-number">4.</span> <span class="toc-text">In the code</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Build a Distributed Pipeline Runtime
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2026-10-22T11:00:00.000Z" itemprop="datePublished">2026-10-22</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>Every team that needs real-time data pipelines eventually faces the same fork in the road. You can adopt the heavy stack — Kafka, Zookeeper, Flink, Kubernetes, Spark — or you can write scripts against your databases and hope for the best.</p>
+<p>For a crypto exchange we were looking at five components, five engineers, and one month to deploy the heavy stack. The alternative was a folder of scripts nobody could page: no failover, no cross-node coordination, no observability.</p>
+<p><strong>What this post is about.</strong> This post is about a third option: a small runtime called Bee. You will see how it hides the cluster from the person writing a rule, where the failover machinery lives, and the gap between library and product.</p>
+<p><strong>What you need to know first.</strong> A <em>cluster</em> is a group of machines that work together over a network. A <em>pipeline</em> is a chain of small programs where each step’s output becomes the next step’s input — and here a pipeline is also the name of one of those steps. A <em>rule</em> is the business logic somebody writes to decide when to act. Bee is written in Rust, a compiled language that checks its types before the program runs. You do not need to know Rust to follow this, but two words come up constantly: a <em>trait</em> is a list of methods a type promises to have, and a <em>crate</em> is one library, Rust’s unit of packaging.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The scenario Bee came from is exchange and DeFi risk control, where DeFi means decentralised finance. A <em>matching engine</em> pairs a buyer with a seller and emits <em>swap events</em>, one message per completed trade. You need to persist those events, compute rolling inflow per trading pair, alert on large trades, and keep doing all of it when a machine dies at 3 a.m.</p>
+<p>Two kinds of people write those rules. A risk analyst thinks in business terms: <em>when a trade exceeds $1000, notify me</em>. A systems engineer thinks in performance terms: <em>the matching engine’s event loop cannot allocate</em>. An <em>event loop</em> is the single thread that handles one event at a time; “cannot allocate” means it must never ask the memory manager for new space, because that pauses the thread. That split drove the central design decision.</p>
+<h2 id="Why-the-design-looks-like-this"><a href="#Why-the-design-looks-like-this" class="headerlink" title="Why the design looks like this"></a>Why the design looks like this</h2><p>Four principles shaped the result.</p>
+<p><strong>1. The cluster is one computer.</strong> You name a <em>datasource</em> — one named external system, such as a database, that your code can call — or a <em>pipeline</em>. You never pick a node; a <em>node</em> is one machine in the cluster. <em>Resolution, placement, and failover</em> — finding a named thing, choosing where a pipeline runs, switching machines when one dies — are the framework’s problem, not yours.</p>
+<p><strong>2. A pipeline is a callback node in a DAG.</strong> A <em>DAG</em> is boxes with arrows between them where no arrow points backwards. A <em>callback</em> is a function the system calls for you: not a job, not a batch unit — a function called with an event that may emit to other pipelines. Every edge is an explicit <code>emits_to</code> declaration, so the graph is knowable, and therefore placeable and movable between nodes.</p>
+<p><strong>3. Two paths, one interface.</strong> A business rule is a Lua script, and Lua is a small embeddable scripting language. A performance-critical core is a Rust type, and Rust checks its types before the program runs. Both implement the same <em>trait</em>, so the runtime does not care which is which, and a graph can mix them.</p>
+<p><strong>4. Hot-reloadable, failover-safe, async-native.</strong> <em>Hot-reloadable</em> means you can replace a pipeline’s code while it runs. <em>Failover-safe</em> means another machine takes over when one dies. <em>Async-native</em> means the code waits for slow operations without blocking a thread. These are acceptance criteria, not aspirations, and they set the <em>crate</em> boundaries — which crate is allowed to depend on which.</p>
+<h3 id="Why-Lua-for-the-scripting-path"><a href="#Why-Lua-for-the-scripting-path" class="headerlink" title="Why Lua for the scripting path"></a>Why Lua for the scripting path</h3><p>The design doc records the reasoning in an appendix called “Why not X”:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why not</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rhai</td>
+<td>No async support</td>
+</tr>
+<tr>
+<td>Rune</td>
+<td>Rust complexity defeats the point of an easy path</td>
+</tr>
+<tr>
+<td>Python</td>
+<td>Too heavy to embed, and the GIL (Python’s global interpreter lock) fights the async runtime</td>
+</tr>
+<tr>
+<td>Custom bytecode / JIT</td>
+<td>Six months of compiler work for a gain that only matters in the matching-engine hot path</td>
+</tr>
+<tr>
+<td>Transpile-to-Rust DSL</td>
+<td>Nobody wants to write Rust to avoid writing Rust</td>
+</tr>
+<tr>
+<td>JSON config only</td>
+<td>“Users need real control flow, async, and sandboxing (running untrusted code under limits), which require a real language”</td>
+</tr>
+</tbody></table>
+<p>LuaJIT won because the <em>person writing the rule</em> should not have to think about the <em>person operating the cluster</em>. The ecosystem matters: LuaJIT is one of the fastest embeddable VMs there is, and its coroutines — lightweight threads a program can suspend and resume — map onto the async bridge.</p>
+<p>The user-facing surface is deliberately small:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">on_call</span><span class="params">(args)</span></span></span><br><span class="line">    <span class="keyword">local</span> mongo = bee.datasource(<span class="string">&quot;mongo-bee&quot;</span>)</span><br><span class="line">    <span class="keyword">local</span> since_ms = args.since_ms <span class="keyword">or</span> (<span class="built_in">os</span>.<span class="built_in">time</span>() - <span class="number">86400</span>) * <span class="number">1000</span></span><br><span class="line">    <span class="keyword">local</span> total = mongo:invoke(<span class="string">&quot;aggregate_inflow&quot;</span>,</span><br><span class="line">        &#123; pair = args.pair, since_ms = since_ms &#125;)</span><br><span class="line">    <span class="keyword">return</span> &#123; pair = args.pair, since_ms = since_ms, total_usdc = total &#125;</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<p>The first line looks up a datasource by name. <code>os.time()</code> is the current Unix time in seconds, so subtracting 86400 — the seconds in a day — defaults the window to “since yesterday”, and <code>* 1000</code> converts it to milliseconds. The <code>invoke</code> call runs the <code>aggregate_inflow</code> operation with two arguments, and the returned table is the rule’s answer. The original script also carried a comment describing the rule; the logic was unchanged.</p>
+<p>A datasource is a <em>named running instance</em> — a Mongo pool, an Ethereum RPC chain, a Telegram bot. You get one by name and call <code>invoke(op, args)</code> on it. There is no connection setup or lifecycle management in user code: the datasource already exists, and the script just uses it.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><p>The workspace is layered in one direction, which keeps the dependency graph acyclic:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">                    ┌──────────────┐</span><br><span class="line">                    │    bee-ui    │  (Tauri + Vue, separate workspace)</span><br><span class="line">                    └──────┬───────┘</span><br><span class="line">  ┌─────────────┬───────────┼───────────┬──────────────┐</span><br><span class="line">bee-registry  bee-membership bee-dispatcher bee-datasource  bee-pool</span><br><span class="line">  └──────┬──────┘           │           │              │</span><br><span class="line">     bee-wire ────────► bee-core ◄─────────────── bee-state</span><br><span class="line">                           ▲  bee-lua ──► (datasource proxies)</span><br></pre></td></tr></table></figure>
+
+<p>The diagram reads top to bottom, and an arrow means “depends on the box it points at”. The top box is the user interface, a separate workspace; the row under it is the five runtime crates, and the vertical connectors say what each one sits on — registry and membership on <code>bee-wire</code>, dispatcher and datasource on <code>bee-core</code>, pool on <code>bee-state</code>. <code>bee-core</code> points at nothing because it depends on nothing. <code>bee-lua</code> at the bottom reaches the system through datasource proxies — stand-in objects a script can call as if they were the real thing.</p>
+<p>The runtime pieces each own one question:</p>
+<ul>
+<li><strong>membership</strong> — who is alive? A 1 Hz heartbeat, a message every second saying “I am still here”, and a failure detector that moves a node from <code>Suspect</code> to <code>Down</code> after three missed cycles (~3 seconds).</li>
+<li><strong>registry</strong> — where does a named thing live? A table that says which node owns each name, kept as a hot local cache and backed by gossip replication, where <em>gossip</em> means members tell each other about changes. Reads are local and instant; writes converge over 5–10 seconds.</li>
+<li><strong>dispatcher</strong> — which node should run this pipeline, and what happens when it dies? Affinity-based placement — running it on a machine that already holds the data it needs — with a primary and a backup.</li>
+<li><strong>pool</strong> — what does a running pipeline graph look like at runtime? Stores pipelines, routes events between them, hot-reloads them.</li>
+</ul>
+<h3 id="The-event-path"><a href="#The-event-path" class="headerlink" title="The event path"></a>The event path</h3><p>A script calls <code>bee.datasource(&quot;eth-mainnet&quot;):invoke(&quot;subscribe_swaps&quot;, &#123;&#125;)</code>. The result flows back into the Lua VM, the virtual machine running the script, and the pipeline emits downstream. Internally the router walks the <code>emits_to</code> graph with an explicit depth limit, because a cycle in a user-authored DAG should be a bounded error, not a stack overflow:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="title function_ invoke__">pub</span>(<span class="keyword">crate</span>) <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">dispatch</span>(&amp;<span class="keyword">self</span>, name: &amp;<span class="type">str</span>, event: Event, depth: <span class="type">u32</span>) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt; &#123;</span><br><span class="line">    <span class="keyword">if</span> depth &gt; <span class="keyword">self</span>.max_depth &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="title function_ invoke__">Err</span>(Error::<span class="title function_ invoke__">internal</span>(<span class="built_in">format!</span>(</span><br><span class="line">            <span class="string">&quot;dispatch depth exceeded (&#123;&#125; &gt; &#123;&#125;) — likely a cycle in emits_to&quot;</span>,</span><br><span class="line">            depth, <span class="keyword">self</span>.max_depth)));</span><br><span class="line">    &#125;</span><br><span class="line">    &#123; ... &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The <code>depth</code> argument counts how many hops the event has travelled, so exceeding the limit returns an error instead of recursing forever. The <code>&#123; ... &#125;</code> stands for the rest of the function, which looks the pipeline up by name and forwards the event to its children.</p>
+<h3 id="Failover"><a href="#Failover" class="headerlink" title="Failover"></a>Failover</h3><p>Failover is not a special path; it is a swap of two fields:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">tracker.<span class="title function_ invoke__">get_mut</span>(pipeline, |assign| &#123;</span><br><span class="line">    <span class="keyword">if</span> assign.primary != primary_down &#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="title function_ invoke__">Err</span>(bee_core::error::Error::<span class="title function_ invoke__">not_found</span>(<span class="string">&quot;no placement&quot;</span>));</span><br><span class="line">    &#125;</span><br><span class="line">    assign.primary = assign.backup;  <span class="comment">// backup takes over</span></span><br><span class="line">    assign.backup = primary_down;   <span class="comment">// dead node waits</span></span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(assign.primary)</span><br><span class="line">&#125;).<span class="keyword">await</span></span><br></pre></td></tr></table></figure>
+
+<p>Each pipeline has a <em>placement</em> recording one primary machine and one backup. This code swaps them: the backup becomes primary, and the machine that just died becomes the new backup. The guard refuses the swap unless the dead machine really was this pipeline’s primary, so a stale failure report cannot move a healthy pipeline.</p>
+<p>The backup was placed by the same scoring function that picked the primary, so the recovering node is already warm. Every alive node gets a score, higher is better, and the top two become primary and backup; the node identifier only breaks ties (<code>bee-dispatcher/src/placement.rs:84</code>). Scoring is <em>affinity</em>-based — it asks whether the node already holds a dependency — not load-based. That is a deliberate v1.0 simplification; load-aware placement is deferred.</p>
+<h3 id="One-interface-two-kinds-of-pipeline"><a href="#One-interface-two-kinds-of-pipeline" class="headerlink" title="One interface, two kinds of pipeline"></a>One interface, two kinds of pipeline</h3><p>This is the seam that makes the “two paths” idea real:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">on_event</span>(&amp;<span class="keyword">self</span>, ev: Event, ctx: &amp;Ctx) <span class="punctuation">-&gt;</span> crate::<span class="type">Result</span>&lt;()&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">_</span> = (ev, ctx);</span><br><span class="line">    <span class="title function_ invoke__">Ok</span>(())</span><br><span class="line">&#125;</span><br><span class="line"><span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">save_state</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> crate::<span class="type">Result</span>&lt;Bytes&gt; &#123; <span class="title function_ invoke__">Ok</span>(Bytes::<span class="title function_ invoke__">new</span>()) &#125;</span><br></pre></td></tr></table></figure>
+
+<p>These two methods are the whole contract. <code>on_event</code> runs once per event from upstream, and the default throws both arguments away and succeeds; that is what <code>let _ = (ev, ctx)</code> means. <code>save_state</code> returns a snapshot of the pipeline’s own state as a <code>Bytes</code> buffer, Rust’s type for a chunk of raw bytes, empty by default (<code>bee-core/src/pipeline.rs:79</code>). A Lua pipeline is just a Rust type that owns a Lua VM behind this same trait, so the runtime cannot tell them apart.</p>
+<h2 id="In-the-code"><a href="#In-the-code" class="headerlink" title="In the code"></a>In the code</h2><p>The datasource abstraction, in <code>bee-core/src/datasource.rs:128</code>:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#[async_trait]</span></span><br><span class="line"><span class="keyword">pub</span> <span class="keyword">trait</span> <span class="title class_">Datasource</span>: <span class="built_in">Send</span> + <span class="built_in">Sync</span> &#123;</span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">name</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> &amp;<span class="type">str</span>;</span><br><span class="line">    <span class="keyword">fn</span> <span class="title function_">kind</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> &amp;<span class="type">str</span>;</span><br><span class="line">    <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">invoke</span>(&amp;<span class="keyword">self</span>, op: &amp;<span class="type">str</span>, args: Value) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;Value, OpError&gt;;</span><br><span class="line">    <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">shutdown</span>(&amp;<span class="keyword">self</span>) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;(), OpError&gt;;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>name</code> and <code>kind</code> describe the datasource, <code>invoke</code> runs one named operation and returns a result or an <code>OpError</code>, and <code>shutdown</code> closes it down. The original trait also had a <code>factory</code> method returning the object that knows how to build instances of this datasource — how the runtime creates them in the first place. <code>#[async_trait]</code> is a macro that lets ordinary <code>async</code> methods appear inside a trait.</p>
+<p><code>invoke</code> is <em>op-based</em>, not method-based: a datasource exposes named operations, and each comes with a self-describing spec (JSON Schema — a way of writing down the expected shape of a JSON document — for the config and for the op), so a plugin manager UI can render an install wizard without hardcoding anything about Mongo or Ethereum.</p>
+<p>The bridge from Lua into Rust, in <code>bee-lua/src/pipeline.rs:154</code>, looks up the script’s <code>on_event</code> function in the Lua VM’s globals and calls it with the event table, holding a mutex — a lock only one caller can hold at a time — for the duration. Which means: Lua pipelines run one event at a time.</p>
+<p>Failure detection, in <code>bee-membership/src/detector.rs:86</code>, compares the age of the last heartbeat against two thresholds and picks one of three statuses: <code>Down</code> past <code>down_after_ms</code>, <code>Suspect</code> past <code>suspect_after_ms</code>, <code>Alive</code> otherwise. The one-way rule matters: one missed heartbeat makes a node <em>suspect</em>, not dead, and it takes three missed cycles to declare it down; three-second detection is the price of never declaring a node dead over one lost packet.</p>
+<p>The registry, in <code>bee-registry/src/registry.rs:125</code>, looks up the node that owns a given <code>(kind, name)</code> pair by taking a read lock on its in-memory map and returning the first match. “Any is returned” is the honest contract for a gossip-replicated map: the system does not pretend to be strongly consistent, it promises convergence.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p>The design doc also lists issues I deliberately deferred: exactly-once delivery, cross-cluster federation, QUIC (a newer transport protocol), load-aware placement, broker-backed broadcast beyond ~100 subscribers, schema evolution, a metrics endpoint, Raft-backed cluster state.</p>
+<p>Two of those deferrals shaped the whole system.</p>
+<p><strong>No consensus, and no centralized coordinator.</strong> <em>Consensus</em> is the problem of making every machine agree on one shared state; etcd and ZooKeeper are databases built for it, on algorithms like Raft. I rejected them because they are heavy dependencies and create a leader bottleneck — exactly what this project was supposed to remove. The cost is that the registry is <em>eventually consistent</em>, which means every node agrees in the end but not necessarily at the same instant, and a pipeline may briefly be placed on two nodes at once. The delivery contract is at-least-once with <em>idempotent</em> pipeline bodies: the same event may arrive twice, so every pipeline must be safe to run twice.</p>
+<p><strong>No broker.</strong> For ≤100 subscribers per source, direct TCP fan-out through <code>bee-wire</code> is simpler than NATS or Redis and adds no external dependency. Past that number, the design gives up.</p>
+<p><code>bee-wire</code> is a five-layer framed protocol with a seven-byte header, the small fixed prefix that tells the receiver what follows. That makes it possible to <em>multiplex</em> — carry four kinds of traffic at once: membership, registry gossip, pipeline dispatch, and state replication — over one connection. The header is written a byte at a time: a version byte, a layer byte, a frame-type byte, and four bytes holding the payload length.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p>The most important thing to say about Bee: the library and the product are not joined up.</p>
+<p><code>crates/bee/src/main.rs</code> builds the builder, registers six datasource factories, compiles Lua pipelines, and serves HTTP on <code>:8080</code>. It never instantiates <code>MembershipRegistry</code>, <code>FailureDetector</code>, <code>HeartbeatScheduler</code>, <code>GossipLoop</code>, <code>ClusterRegistry</code>, <code>Dispatcher</code>, <code>PipelinePool</code>, or <code>Conn</code>. Those crates are real and tested — 265 tests across 14 crates — and the umbrella crate re-exports all of them, but the shipping binary uses none of them.</p>
+<p>That means the business document’s “multi-machine cluster auto-discovery ✅ verified” and “3-second automatic failover ✅ verified” are true of the <em>library</em>, not of the <em>product</em>. I should have noticed that discrepancy earlier and written it so it could not be misread.</p>
+<p>Three smaller things I would fix:</p>
+<p><strong>The Lua sandbox is a placeholder.</strong> The acceptance criterion says “a Lua pipeline that calls <code>os.execute</code> is killed cleanly by the sandbox”. The current implementation is explicitly a placeholder — <code>mlua</code> 0.10 exposes no direct memory knob, and a real instruction-counter hook (a counter that stops a script after a set number of instructions) was deferred. So the sandbox does not actually sandbox.</p>
+<p><strong>The async bridge is synchronous-only.</strong> <code>bridge.rs</code> returns “async handler not yet supported by v1.0 bridge”, and the coroutine-based bridge is sketched but not wired through <code>on_event</code>. Every Lua datasource call is therefore synchronous for the pipeline.</p>
+<p><strong>The design moved and the code moved with it.</strong> The original runtime design defined <code>ComputeUnit</code>, <code>Input</code>, <code>Output</code>, <code>RecordBatch</code> and <code>Loader</code>. The final design replaced all of it with <code>Event</code>, <code>Datasource</code> and <code>Pipeline</code>, and the plugin design then replaced the <code>Module</code> trait with <code>DatasourceFactory</code> + <code>Datasource</code> — again, mid-implementation. The final model is much better, but the residue of the first two shows in crates like <code>bee-datasource/src/router.rs</code>, which starts with the comment “Phase 1: stub. Phase 2 adds Lua subscription routing.”</p>
+<p>That residue is the real lesson. A design rewritten twice leaves two sets of half-implemented paths behind, and cleaning up costs more than the rewrite did. If I started Bee again, I would write the trait boundary and the plugin spec first, throw away the v0 runtime model, and only then build the distributed pieces — with the shipping binary wired to the cluster from the first commit, so “verified” means what a reader thinks it means.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/tokio-rs/tokio">tokio</a> — the asynchronous Rust runtime the Bee scheduler builds on</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/mlua-rs/mlua">mlua</a> — the Rust binding to Lua that runs the scripting path</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/mlua/latest/mlua/">mlua documentation</a> — API reference for the Lua VM, its sandboxing and its coroutine bridge</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/rust-lang/book">The Rust Programming Language</a> — the free book, if the trait vocabulary is unfamiliar</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/tonic/latest/tonic/">tonic</a> — a Rust gRPC framework, a reference for framed protocols</li>
+<li><a target="_blank" rel="noopener" href="https://docs.rs/bytes/latest/bytes/">bytes</a> — the byte-buffer crate behind the framing and the state snapshots</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-the-design-looks-like-this"><span class="toc-number">2.</span> <span class="toc-text">Why the design looks like this</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-Lua-for-the-scripting-path"><span class="toc-number">2.1.</span> <span class="toc-text">Why Lua for the scripting path</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-event-path"><span class="toc-number">3.1.</span> <span class="toc-text">The event path</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Failover"><span class="toc-number">3.2.</span> <span class="toc-text">Failover</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#One-interface-two-kinds-of-pipeline"><span class="toc-number">3.3.</span> <span class="toc-text">One interface, two kinds of pipeline</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#In-the-code"><span class="toc-number">4.</span> <span class="toc-text">In the code</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

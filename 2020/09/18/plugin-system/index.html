@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="pf4j, a fork-in-place, and the difference between adding a database and adding a metric">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Design a Plugin System for Device Drivers">
+<meta property="og:url" content="http://shawhuang.com/2020/09/18/plugin-system/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="pf4j, a fork-in-place, and the difference between adding a database and adding a metric">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2020-09-18T12:56:00.000Z">
+<meta property="article:modified_time" content="2026-10-22T18:16:12.115Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Design a Plugin System for Device Drivers</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2021/02/01/monitoring-metrics/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2020/09/16/ktor-pipeline/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-pf4j"><span class="toc-number">2.</span> <span class="toc-text">Why pf4j</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Living-inside-pf4j%E2%80%99s-package"><span class="toc-number">3.</span> <span class="toc-text">Living inside pf4j’s package</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-SPI-driver-versus-connection"><span class="toc-number">4.</span> <span class="toc-text">The SPI: driver versus connection</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#A-plugin-is-a-driver"><span class="toc-number">5.</span> <span class="toc-text">A plugin is a driver</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-a-plugin-contributes"><span class="toc-number">6.</span> <span class="toc-text">What a plugin contributes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Capability-negotiation-instead-of-a-shared-enum"><span class="toc-number">7.</span> <span class="toc-text">Capability negotiation instead of a shared enum</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-real-extension-point-a-task-is-data"><span class="toc-number">8.</span> <span class="toc-text">The real extension point: a task is data</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-modes"><span class="toc-number">9.</span> <span class="toc-text">Failure modes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">10.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">11.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">12.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Design a Plugin System for Device Drivers
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2020-09-18T12:56:00.000Z" itemprop="datePublished">2020-09-18</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>The collector ships as a product. The customers are database and host vendors, and the first thing each of them asks is “can we support our database without you shipping a new release for us?”</p>
+<p>The answer has to be yes. But there are two very different requests hiding in that sentence:</p>
+<ul>
+<li><strong>“Our database is not on your list.”</strong> — needs a new <em>driver</em>: new connection code, new action vocabulary, new tasks.</li>
+<li><strong>“We want to monitor a metric you do not have.”</strong> — needs a new <em>task</em>: a JSON document, and nothing else.</li>
+</ul>
+<p>The plugin system is designed so that the second request needs no code at all, and the first needs a self-contained jar.</p>
+<p><strong>What this post is about.</strong> It is about the plugin system of a monitoring collector: how a vendor’s driver is loaded at run time, what a plugin may do, and where the model stops being flexible. You will learn what a <em>plugin</em> is (a separate piece of code, loaded on demand, that talks to the host through a fixed interface), how pf4j loads one, and why “a new metric” and “a new database” cost very different amounts of work.</p>
+<p><strong>What you need to know first.</strong> A <em>jar</em> is a zip file of compiled Java classes; a <em>classloader</em> is the object that decides which class a name resolves to, so two jars can contain same-named classes without colliding; and an <em>SPI</em> (service provider interface) is the pattern where the host defines an interface and the plugin implements it.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The core cannot know about every database. A driver has to be able to:</p>
+<ul>
+<li>create a live connection to a target and keep it alive across a fleet,</li>
+<li>answer “can you do this kind of collection?” (the <em>action</em> vocabulary),</li>
+<li>contribute a set of collection tasks,</li>
+<li>and hook itself into the collection pipeline at the right phases.</li>
+</ul>
+<p>None of that may require editing the core.</p>
+<h2 id="Why-pf4j"><a href="#Why-pf4j" class="headerlink" title="Why pf4j"></a>Why pf4j</h2><p>The alternatives were a hand-rolled classloader, an annotation-processor-only design, or a plain “drop a jar in <code>plugins/</code> and restart” with no isolation.</p>
+<p>A hand-rolled classloader is about 150 lines, and then you have to re-implement dependency resolution between plugins, plugin lifecycle, and unloading. An annotation-only design cannot express “this plugin depends on that plugin”. pf4j gives all of it — lifecycle with start/stop/unload events, dependency ordering through <code>Plugin-Dependencies</code>, per-plugin classloaders, a generated extension index — and the price is a Java-shaped API, MANIFEST conventions, and some Gradle packaging work.</p>
+<p>Packaging is a zip, not a jar: it contains <code>classes/</code> (the plugin) and <code>lib/</code> (the plugin’s own third-party jars). pf4j expands the zip at load time and gives each plugin a <code>PluginClassLoader</code> with <code>classes/</code> and <code>lib/*.jar</code> on it. Because the exploded layout puts the manifest under <code>classes/META-INF/</code>, the descriptor finder has to be taught where to look: <code>ScrapePluginManager.createPluginDescriptorFinder()</code> overrides <code>getManifestPath</code> to return <code>classes/META-INF/MANIFEST.MF</code> for an exploded plugin and <code>MANIFEST.MF</code> for a plain one.</p>
+<h2 id="Living-inside-pf4j’s-package"><a href="#Living-inside-pf4j’s-package" class="headerlink" title="Living inside pf4j’s package"></a>Living inside pf4j’s package</h2><p>Look at the package name of those three files: <code>org.pf4j.scrape</code>. Not <code>com.enmotech...</code> — <strong>inside pf4j’s own namespace</strong>, on purpose.</p>
+<p>pf4j’s <code>PluginClassLoader</code> is child-first, with two exceptions: <code>java.*</code> and <code>org.pf4j.*</code> are delegated to the parent (application) classloader. That single rule is the whole design:</p>
+<ul>
+<li>The bridge classes (<code>ScrapePlugin</code>, <code>ScrapeConnectionExtension</code>) are loaded <strong>once</strong>, by the host.</li>
+<li>A plugin’s driver object therefore <em>is</em> the core’s <code>ScrapeDriver</code> instance, not a look-alike from a different classloader.</li>
+<li>Move the bridge to <code>com.enmotech.bethunepro.scrape</code> and every plugin would load its own copy, so the object handed to <code>installDriver</code> would not be the core’s <code>ScrapeDriver</code> — an immediate <code>ClassCastException</code>.</li>
+</ul>
+<p>The cost is real: you own a namespace that is not yours, and the packaging rule that keeps core classes out of each plugin’s <code>lib/</code> (<code>exclude &quot;*scrape*&quot;, &quot;*pf4j*&quot;, &quot;*kotlin*&quot;, &quot;*logback*&quot;, &quot;*slf4j*&quot;</code>) becomes load-bearing rather than tidy. A bundled copy of the core inside a plugin would silently duplicate classes across the boundary.</p>
+<h2 id="The-SPI-driver-versus-connection"><a href="#The-SPI-driver-versus-connection" class="headerlink" title="The SPI: driver versus connection"></a>The SPI: driver versus connection</h2><p>The contract a plugin implements is two small interfaces. The first one is the <em>driver</em>:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">interface</span> <span class="title class_">ScrapeDriver</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">id</span><span class="params">()</span></span>: String</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">version</span><span class="params">()</span></span>: String = <span class="string">&quot;1.0.0&quot;</span></span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">createConnection</span><span class="params">(instance: <span class="type">ScrapeInstance</span>)</span></span>: ScrapeConnection?</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">isSupportAction</span><span class="params">(action: <span class="type">String</span>, instance: <span class="type">ScrapeInstance</span>)</span></span>: <span class="built_in">Boolean</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The four methods are: the driver’s id, its version, a factory that opens a connection to one target instance, and a yes/no test for whether this driver can perform a given action. The second interface, <code>ScrapeConnection</code>, describes a live session — <code>isConnected()</code>, <code>checkLive()</code>, <code>attribute()</code>, <code>platform()</code> — and is <code>Closeable</code>.</p>
+<p>The split between the two interfaces is the first design decision worth naming. The <strong>driver</strong> is the vocabulary, the factory and the lifecycle: one long-lived, stateless object per vendor family, owning the action enum (<code>OracleStatements</code>, <code>HostStatements</code>, <code>MysqlStatements</code>…). The <strong>connection</strong> is a live session against one target: stateful, pooled, reconnectable, and closed when the instance goes away.</p>
+<p>The granularity is per <em>vendor family</em>, never per metric. A driver is “Oracle”, not “Oracle session count”.</p>
+<h2 id="A-plugin-is-a-driver"><a href="#A-plugin-is-a-driver" class="headerlink" title="A plugin is a driver"></a>A plugin is a driver</h2><figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">abstract</span> <span class="keyword">class</span> <span class="title class_">ScrapePlugin</span> : <span class="type">Plugin</span>, <span class="type">ScrapeDriver</span>, <span class="type">Dump</span> &#123;</span><br><span class="line">    <span class="keyword">override</span> <span class="keyword">val</span> logger: Logger = Dump.getLogger(id())</span><br><span class="line">    <span class="keyword">constructor</span>() : <span class="keyword">super</span>(EmptyWrapper)</span><br><span class="line">    <span class="keyword">constructor</span>(wrapper: PluginWrapper) : <span class="keyword">super</span>(wrapper)</span><br><span class="line">    <span class="keyword">var</span> options: Container&lt;Any?&gt;? = <span class="literal">null</span></span><br><span class="line">    <span class="keyword">override</span> <span class="function"><span class="keyword">fun</span> <span class="title">id</span><span class="params">()</span></span>: String = wrapper?.descriptor?.pluginId ?: <span class="string">&quot;plugin&quot;</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>ScrapePlugin</code> inherits from pf4j’s <code>Plugin</code> (the base class every plugin extends) <em>and</em> from <code>ScrapeDriver</code> (the contract the core understands), so the plugin base class <em>is</em> the driver. <code>wrapper?.descriptor?.pluginId</code> reads the id out of the plugin’s manifest — with a fallback for a plugin that was constructed without one. The two constructors are the pf4j ones: one for a plugin that has a wrapper, one (<code>EmptyWrapper</code>) for one that does not yet.</p>
+<p>The core never imports pf4j — the dependency arrow points the other way, from the pf4j bridge module to the core.</p>
+<p>At startup, every loaded plugin that is a <code>ScrapePlugin</code> is installed as a driver. The manager subscribes to the register’s <code>Started</code> event, starts the plugins, filters the loaded plugins down to <code>ScrapePlugin</code>s and calls <code>scope.driverManager.installDriver(...)</code> on each one.</p>
+<p>That gives one deployable, one id, one version, one lifecycle. The limit: <strong>one plugin is exactly one driver.</strong> You cannot ship “mysql” and “mariadb” in one artifact, and the plugin id and the driver id are welded together — <code>id()</code> is literally the manifest’s <code>Plugin-Id</code>. The model conflates a <em>unit of deployment</em> with a <em>unit of capability</em>; the workaround is the dependency graph, and the Oracle plugin declares <code>Plugin-Dependencies: host,database,dg</code>.</p>
+<h2 id="What-a-plugin-contributes"><a href="#What-a-plugin-contributes" class="headerlink" title="What a plugin contributes"></a>What a plugin contributes</h2><p>A driver’s <code>install</code> hook is where it adds both its tasks and its pipeline handlers:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">override</span> <span class="function"><span class="keyword">fun</span> <span class="title">install</span><span class="params">(options: <span class="type">Container</span>&lt;<span class="type">Any</span>?&gt;?, scrapeRegister: <span class="type">ScrapeRegister</span>)</span></span> &#123;</span><br><span class="line">    <span class="keyword">super</span>.install(options, scrapeRegister)</span><br><span class="line">    scrapeRegister.taskManager.install &#123; <span class="keyword">this</span>.installOracleTask() &#125;</span><br><span class="line">    scrapeRegister.collector.install &#123;</span><br><span class="line">        oracleMonitorTaskHandlers()</span><br><span class="line">        oracleInfoHandlers()</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>The first <code>install</code> registers the plugin’s <em>tasks</em> (the things to collect); the second registers <em>handlers</em> — the interceptors that run when a task is collected. <code>super.install</code> is the base class’s own hook, called first.</p>
+<p>So the plugin surface is not phase splicing. <code>Pipeline.merge()</code> exists in the core and would let a plugin insert a brand-new phase relative to an existing one — but it is called from nowhere except the ported pipeline test. What a plugin actually gets is the ability to <strong>register an interceptor for an existing phase, keyed by task id</strong>. The phases are fixed:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">Before → Transform → Render → Valid → Collecting → Collected → After</span><br></pre></td></tr></table></figure>
+
+<p>Each arrow is one phase, in the order the work happens, and the list is fixed by the core. The hooks a plugin can fill are <code>before</code>, <code>transform</code>, <code>render</code>, <code>valid</code>, <code>connectBefore</code>, <code>collected</code>, <code>success</code>, <code>failed</code>, <code>paramParser</code>, <code>last</code>.</p>
+<p>The interesting ones are the ones that change what actually runs:</p>
+<ul>
+<li><code>before</code> may short-circuit the entire task — return a <code>ScrapeResponseData</code> and the pipeline merges it and finishes. A plugin can therefore answer a task <em>without touching the device</em>.</li>
+<li><code>render</code> may return a <strong>different <code>ScrapeTask</code></strong> — swapping the action and the script at run time. The host plugin uses this to substitute a Perl script on Solaris and HP-UX.</li>
+<li><code>connectBefore</code> may rewrite the instance before the connection is made — the Data Guard plugin injects <code>ORACLE_VERSION</code> into the environment there.</li>
+<li><code>valid</code> may veto execution.</li>
+</ul>
+<p>What a plugin <em>cannot</em> do: add or reorder a phase, replace the driver of an existing instance, change another plugin’s action table.</p>
+<h2 id="Capability-negotiation-instead-of-a-shared-enum"><a href="#Capability-negotiation-instead-of-a-shared-enum" class="headerlink" title="Capability negotiation instead of a shared enum"></a>Capability negotiation instead of a shared enum</h2><p>The core holds no action table. An action is a string, and a driver claims it. The collector asks the driver, and falls back when the answer is no:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">collectCall.instance =</span><br><span class="line">    <span class="keyword">if</span> (register.driverManager.take(instance.driver, instance.version)</span><br><span class="line">        ?.isSupportAction(action, instance) == <span class="literal">true</span>) &#123;</span><br><span class="line">        <span class="comment">// this driver can perform the action</span></span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// the instance&#x27;s referenceId names another plugin, e.g. &quot;host&quot;</span></span><br><span class="line">        <span class="keyword">val</span> referenceId = instance.referenceId</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>take(driver, version)</code> looks up the driver by id and version; <code>isSupportAction</code> asks it whether it can do the work. When it cannot, the collector logs a line and takes the instance’s <em>reference instance</em> instead — a second instance, of a different plugin, that can do it.</p>
+<p>This is the part that makes the plugin model work in practice. A database plugin implements only what JDBC can do; the shell-and-Perl part of the work is delegated to the <em>host</em> plugin through the instance’s <code>referenceId</code>. The database driver never needs to know that SSH exists.</p>
+<p>The cost of string actions is that there is no compile-time checking, the action namespace is global and unversioned, and the capability check is a runtime string comparison on every dispatch.</p>
+<h2 id="The-real-extension-point-a-task-is-data"><a href="#The-real-extension-point-a-task-is-data" class="headerlink" title="The real extension point: a task is data"></a>The real extension point: a task is data</h2><p>This is the part I would put in front of a customer, because it is the one that removes them from the code path entirely.</p>
+<p>A task is a record:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">data</span> <span class="keyword">class</span> <span class="title class_">ScrapeTask</span>(</span><br><span class="line">    <span class="keyword">val</span> id: String = guid(),</span><br><span class="line">    <span class="keyword">var</span> action: String? = <span class="literal">null</span>,</span><br><span class="line">    <span class="meta">@JvmField</span> <span class="keyword">var</span> scripts: ScrapeScripts = ScrapeScripts(),</span><br><span class="line">    <span class="meta">@JvmField</span> <span class="keyword">var</span> inputParams: ScrapeParams = ScrapeParams(),</span><br><span class="line">    <span class="meta">@JvmField</span> <span class="keyword">var</span> outputParams: ScrapeParams = ScrapeParams()</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p>A task has an id, the action to perform, the scripts to run, typed input and output parameters — and a <code>depends</code> map (task-id → task that can be either a reference or an inline definition), which is left out of the excerpt above. An <em>action</em> is a verb the driver understands (<code>ORACLE_QUERY</code>, <code>LOG_FILE_READ</code>, <code>SHELL_TEXT_LINE</code>, <code>MYSQL_QUERY</code>…), the <em>scripts</em> are keyed by a <strong>regex matched against the platform</strong> (<code>type:os:arch:version:describe</code>), and the parameters are typed.</p>
+<p>A “custom task” (自定义采集项) is therefore a JSON document: pick an action a supported driver already understands, attach a script per platform, give it parameters and a cron. The app exposes it over HTTP, so <strong>a new metric on an already-supported database needs no code, no plugin and no release</strong>. A new <em>database</em> needs a plugin; a new <em>metric</em> does not. That is the line the whole plugin system is drawn to make possible.</p>
+<p>Script selection is by platform regex, with a catch-all: the collector drops the entries whose version is the wildcard <code>*</code>, takes the first entry whose version regex matches the instance’s platform, and falls back to <code>task.scripts[&quot;*&quot;]</code> if none matches. If nothing matches, <code>subject.script</code> stays null, the collector writes a debug line, and the caller gets an empty result — no data and no error. A monitoring product that silently stops reporting is worse than one that reports a failure.</p>
+<h2 id="Failure-modes"><a href="#Failure-modes" class="headerlink" title="Failure modes"></a>Failure modes</h2><table>
+<thead>
+<tr>
+<th>Situation</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Plugin jar broken or manifest missing</td>
+<td>pf4j logs a <code>PluginException</code> per plugin and continues. The plugin is simply absent.</td>
+</tr>
+<tr>
+<td>A plugin’s dependency is missing</td>
+<td><code>DependenciesNotFoundException</code> is caught and logged; the plugin stays <em>unresolved</em>. But the install loop takes <strong>all</strong> plugins regardless of state, so an unresolved plugin is still registered as a driver.</td>
+</tr>
+<tr>
+<td>Plugin throws during <code>start()</code></td>
+<td>Caught per plugin; the others still start.</td>
+</tr>
+<tr>
+<td>The driver’s <code>install()</code> throws</td>
+<td>The driver object is <em>already</em> in the container, so instances resolve to a driver whose tasks and handlers were never registered. The failure surfaces later as “the task@… can’t be found” at collect time.</td>
+</tr>
+<tr>
+<td>No driver for an instance</td>
+<td>An exception from the <code>Valid</code> phase, caught by the engine and attached to that task’s response. <strong>One task fails, the request survives.</strong></td>
+</tr>
+<tr>
+<td>No script matches the platform</td>
+<td>Silent empty result.</td>
+</tr>
+<tr>
+<td>Driver uninstalled</td>
+<td>The plugin is stopped and unloaded, and the instance manager closes the instances bound to it.</td>
+</tr>
+</tbody></table>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>“A plugin is a driver” buys simplicity and costs flexibility.</strong> One deployable with one id, one version and one lifecycle is a very clean model — and it means you cannot ship two drivers with different option sets in one artifact, and the identity of the plugin and of the capability can never diverge.</p>
+<p><strong>String actions buy extensibility and pay in typos.</strong> A typed enum in the core would require the core to know every action, defeating the plugin model; a generic registry erases to <code>Any</code> at runtime anyway. The trade is strings — which is what makes JSON-authored tasks possible — paid for with a global, unversioned namespace where two plugins can collide.</p>
+<p><strong>Task ids and collector handlers are keyed by a global string.</strong> Two third-party plugins that both define a task called <code>host_info</code> silently collide: last registration wins, and one plugin’s <code>success</code> handler fires for the other’s task. There is no plugin-scoped namespace.</p>
+<p><strong>The ordering between the plugin manager and the task manager is an undocumented assumption.</strong> Plugin-contributed tasks are only picked up during the <code>RegisterEvents.Started</code> pass, and that pass only sees them if the plugin manager’s handler runs first — which holds only because the plugin manager is installed first.</p>
+<p><strong>The extension index is dead weight.</strong> <code>META-INF/extensions.idx</code> is generated by kapt, packaged, and shipped — and then never consulted. Connections are created by <code>driver.createConnection(instance)</code>, not by pf4j’s extension discovery. The machinery invites the reader to expect extension-point discovery that does not actually happen.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Namespace everything by plugin.</strong> Task ids, handler keys and action names should be scoped by the plugin that owns them (<code>oracle/oracle_info</code>), and the collision problem disappears rather than being documented.</p>
+<p><strong>Make the platform regex required, and fail loudly.</strong> A task with no matching script should produce a failed metric, not an empty one. The “no data” and “could not run” cases must be distinguishable in the product, because a monitoring system that goes quiet is indistinguishable from one that is fine.</p>
+<p><strong>Make the unresolved-plugin case explicit.</strong> If a plugin’s dependencies are missing, it should not be installable as a driver. Right now the install loop takes every plugin regardless of state, and a half-initialised driver is worse than a missing one.</p>
+<p><strong>Delete the extension machinery, or wire it up.</strong> Either the connections are discovered through pf4j’s extension points — in which case the index has a purpose — or the index generation and the <code>ScrapeConnectionExtension</code> type should go, because shipping a mechanism that never runs is how a reader ends up believing the system works differently than it does.</p>
+<p><strong>And decide what a plugin version means.</strong> The driver key is <code>id@version</code> with an <em>exact</em> lookup, and the plugin version <em>is</em> the driver version. Bumping a plugin’s <code>Plugin-Version</code> therefore orphans every instance pinned to the old one, with no warning. A “latest” fallback, or an explicit compatibility range, would make upgrades a decision instead of a trap.</p>
+<p>The part worth keeping exactly as it is: the SPI is two small interfaces, the plugin is a self-contained jar, and the <em>task</em> is data. A vendor can ship a driver without touching the core, an operator can add a metric without shipping anything, and the core never learns the name of a database it has never seen.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/pf4j/pf4j">pf4j</a> — the plugin framework this system uses</li>
+<li><a target="_blank" rel="noopener" href="https://pf4j.org/">pf4j.org</a> — the project’s home page</li>
+<li><a target="_blank" rel="noopener" href="https://pf4j.org/doc/plugins.html">Developing plugins</a> — the lifecycle, packaging and extension points</li>
+<li><a target="_blank" rel="noopener" href="https://kotlinlang.org/docs/coroutines-overview.html">Kotlin coroutines</a> — the model the collector’s pipelines run on</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ktorio/ktor">ktor</a> — the HTTP framework the core’s pipeline copy is ported from</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-pf4j"><span class="toc-number">2.</span> <span class="toc-text">Why pf4j</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Living-inside-pf4j%E2%80%99s-package"><span class="toc-number">3.</span> <span class="toc-text">Living inside pf4j’s package</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-SPI-driver-versus-connection"><span class="toc-number">4.</span> <span class="toc-text">The SPI: driver versus connection</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#A-plugin-is-a-driver"><span class="toc-number">5.</span> <span class="toc-text">A plugin is a driver</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-a-plugin-contributes"><span class="toc-number">6.</span> <span class="toc-text">What a plugin contributes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Capability-negotiation-instead-of-a-shared-enum"><span class="toc-number">7.</span> <span class="toc-text">Capability negotiation instead of a shared enum</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-real-extension-point-a-task-is-data"><span class="toc-number">8.</span> <span class="toc-text">The real extension point: a task is data</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-modes"><span class="toc-number">9.</span> <span class="toc-text">Failure modes</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">10.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">11.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">12.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

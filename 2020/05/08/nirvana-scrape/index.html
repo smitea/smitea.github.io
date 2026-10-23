@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Task-as-data, plugins that are drivers, and a scheduler where one slow instance must never stall the other 199.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Collect Metrics from a Fleet of Databases">
+<meta property="og:url" content="http://shawhuang.com/2020/05/08/nirvana-scrape/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Task-as-data, plugins that are drivers, and a scheduler where one slow instance must never stall the other 199.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2020-05-08T11:20:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T02:00:49.554Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Collect Metrics from a Fleet of Databases</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2020/08/12/nirvana-bee/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2019/05/16/collect-metrics-over-ssh/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-the-collector-is-put-together"><span class="toc-number">2.</span> <span class="toc-text">How the collector is put together</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#A-task-is-a-record-not-a-class"><span class="toc-number">2.1.</span> <span class="toc-text">A task is a record, not a class</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-pipeline-an-ordered-list-of-stages"><span class="toc-number">2.2.</span> <span class="toc-text">A pipeline: an ordered list of stages</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Plugins-are-the-drivers"><span class="toc-number">2.3.</span> <span class="toc-text">Plugins are the drivers</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-collector-is-stateless"><span class="toc-number">2.4.</span> <span class="toc-text">The collector is stateless</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-connection-pools-on-purpose"><span class="toc-number">2.5.</span> <span class="toc-text">Two connection pools, on purpose</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-containment"><span class="toc-number">4.</span> <span class="toc-text">Failure containment</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Collect Metrics from a Fleet of Databases
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2020-05-08T11:20:00.000Z" itemprop="datePublished">2020-05-08</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>This is not a web scraper, despite the name. <code>scrape</code> here means <em>scrape metrics</em>: a monitoring collector — a program that runs in the background — pulls numbers out of hundreds of Oracle, MySQL, PolarDB and PostgreSQL databases, plus Linux, Solaris and AIX hosts, on a timer, and ships them to Riemann. Riemann is a <em>time-series database</em>: a store that keeps each measurement as a timestamped event so you can graph it later.</p>
+<p><strong>What this post is about.</strong> It is about the Kotlin program that does this — <code>nirvana-scrape</code> — and about how its pieces fit together: how a piece of work is described, how it is run, how a new kind of database is added, and how one slow instance is kept from stalling the other 199.</p>
+<p><strong>What you need to know first.</strong> Four words. A <em>task</em> is one piece of work the collector can run. A <em>driver</em> is the plugin that knows how to talk to one kind of target. A <em>pipeline</em> is an ordered list of stages that a task passes through. A <em>schedule</em> is the timer that decides when to collect. Everything else is explained where it appears.</p>
+<p>The project lives in the Nirvana product family (<code>gitlab.enmotech.com/nirvana/</code>); the published artifact is <code>com.enmotech.bethunepro</code>, the collector that ships inside Bethune Pro, a commercial database-monitoring product. The name <code>nirvana-scrape</code> is the repository. The thing you would actually deploy is a <em>daemon</em> — a program that runs in the background and never stops.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>A DBA — a database administrator, the person who keeps the databases healthy — opens a dashboard and expects to see, for a fleet of 200 databases: session counts, wait-time histograms, table-space usage, replication lag (how far a standby copy trails its primary). Somebody has to go and ask each instance, every thirty seconds, and put the answers somewhere queryable.</p>
+<p>The difficulty is not the SQL. It is that every target is different in four ways at once:</p>
+<ul>
+<li><strong>Transport</strong>: JDBC for databases (the standard Java library for opening database connections and running SQL), SSH for hosts (the encrypted remote-login protocol for running commands on another machine), with a Perl interpreter in between for the host scripts.</li>
+<li><strong>Dialect</strong>: Oracle’s <code>DBA_</code> views — its built-in metadata tables — are not MySQL’s <code>information_schema</code>, and Data Guard (Oracle’s built-in primary/standby replication) needs its own verbs entirely.</li>
+<li><strong>Failure mode</strong>: a database does not fail like a host does. A host may refuse the SSH handshake. An Oracle instance may accept the connection and then hang for two minutes inside a <code>GROUP BY</code>.</li>
+<li><strong>Blast radius</strong>: one slow instance must never delay the other 199.</li>
+</ul>
+<p>There is a second, less obvious requirement. The same collector also has to serve <em>ad-hoc</em> work: an operator opens a query console, types SQL against one of those 200 instances, and expects an answer in seconds — that query is a 2000-row <code>GROUP BY</code> on a production box during business hours. It must not starve the scheduled metrics collection on the same machine; “starve” means delaying it so long the data goes stale.</p>
+<h2 id="How-the-collector-is-put-together"><a href="#How-the-collector-is-put-together" class="headerlink" title="How the collector is put together"></a>How the collector is put together</h2><h3 id="A-task-is-a-record-not-a-class"><a href="#A-task-is-a-record-not-a-class" class="headerlink" title="A task is a record, not a class"></a>A task is a record, not a class</h3><p>The central abstraction is not a <code>Task</code> interface with <code>execute()</code>/<code>onError()</code> methods. A task is a <em>record</em> — a plain data holder with no behaviour of its own:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">data</span> <span class="keyword">class</span> <span class="title class_">ScrapeTask</span>(</span><br><span class="line">    <span class="keyword">val</span> id: String = guid(),</span><br><span class="line">    <span class="keyword">var</span> action: String? = <span class="literal">null</span>,</span><br><span class="line">    <span class="meta">@JvmField</span> <span class="keyword">var</span> scripts: ScrapeScripts = ScrapeScripts(),</span><br><span class="line">    ...</span><br><span class="line">)</span><br></pre></td></tr></table></figure>
+
+<p><code>data class</code> is Kotlin’s shorthand for a class whose only job is to hold values; the compiler writes the <code>equals</code>, <code>hashCode</code> and <code>toString</code> methods for you. The file is <code>nirvana-scrape-core/src/main/kotlin/com/enmotech/bethunepro/scrape/core/domain/ScrapeTask.kt:17</code>. Each field is a slot you can fill in without writing any Kotlin. <code>action</code> is a verb — <code>ORACLE_QUERY</code>, <code>LOG_FILE_READ</code>, <code>SHELL_TEXT_LINE</code>, <code>MYSQL_QUERY</code>. <code>scripts</code> holds the code to run on each platform. The <code>...</code> stands for the fields left out: <code>depends</code>, which lists other tasks this one needs, and two parameter objects carrying typed input and output values. The rest is bookkeeping: a <code>key()</code> helper that gives the task a globally unique name, a <code>newInstance()</code> copy method, and a builder.</p>
+<p>This is what makes “custom task” work. An operator adds a new monitoring item as a JSON document — pick an action, attach a script per platform, give it a cron expression (a short scheduling pattern, like <code>*/30 * * * *</code> for “every 30 seconds”), a timeout, and a set of parameters. The result is a new metric with <strong>no code and no rebuild</strong>. <code>CUSTOM_TASK.md</code> is the manual for that; it is the feature the whole design is arranged around.</p>
+<h3 id="A-pipeline-an-ordered-list-of-stages"><a href="#A-pipeline-an-ordered-list-of-stages" class="headerlink" title="A pipeline: an ordered list of stages"></a>A pipeline: an ordered list of stages</h3><p>Behaviour is attached to a task through named <em>phases</em> rather than by subclassing. There are three pipelines — one for connecting, one for the HTTP request, one for collecting — and the collect one is where the work happens. Its phase list, in order, is <code>Before, Transform, Render, Valid, Collecting, Collected, After</code>, declared as <code>ScrapeCollectPipeline : Pipeline&lt;ScrapeResponseData, ScrapeCollectCall&gt;</code> in <code>nirvana-scrape-core/.../core/request/ScrapeRequestPipeline.kt:49</code>.</p>
+<p>Reading that list left to right gives you the life of a collection: prepare it, work out the parameters, choose the script, check it is legal, run it, tidy up, finish. A third-party plugin can splice its own <code>render</code> phase into the chain without touching core. The pipeline itself is a hand-rolled interceptor chain (<code>common/Pipelines.kt</code>) — an interceptor is a small step that wraps every request — with <code>Pipeline.merge()</code> for splicing.</p>
+<p>The pipeline even reimplements coroutine interception to avoid allocating a <code>CoroutineContext</code> per interceptor. A <code>CoroutineContext</code> is the object that carries “who is running this” — which thread, which cancellation scope — and building one per interceptor per task adds up. That micro-optimisation is not one I would defend in a new project. It exists because this code runs once per instance per interval, on a fleet of hundreds, forever.</p>
+<h3 id="Plugins-are-the-drivers"><a href="#Plugins-are-the-drivers" class="headerlink" title="Plugins are the drivers"></a>Plugins are the drivers</h3><p>The extension point — the place where outside code can plug into the program — is <code>pf4j</code>, a plugin framework for the JVM, the Java virtual machine that runs Kotlin programs. A plugin <em>is</em> a driver:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">interface</span> <span class="title class_">ScrapeDriver</span> &#123;</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">id</span><span class="params">()</span></span>: String</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">createConnection</span><span class="params">(instance: <span class="type">ScrapeInstance</span>)</span></span>: ScrapeConnection?</span><br><span class="line">    <span class="function"><span class="keyword">fun</span> <span class="title">isSupportAction</span><span class="params">(action: <span class="type">String</span>, instance: <span class="type">ScrapeInstance</span>)</span></span>: <span class="built_in">Boolean</span></span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nirvana-scrape-core/.../core/spi/ScrapeDriver.kt:18</code>. An <em>interface</em> is a list of methods that an implementor has to provide. <code>createConnection</code> opens a connection to one instance — the <code>?</code> says it may return nothing at all. <code>isSupportAction</code> answers “do you handle this kind of task?”. The base class makes the link explicit: <code>ScrapePlugin</code> extends pf4j’s <code>Plugin</code> and implements <code>ScrapeDriver</code> at the same time. Its <code>id()</code> reads the plugin id out of pf4j’s descriptor, falling back to the literal string <code>&quot;plugin&quot;</code>.</p>
+<p>Plugins are discovered through pf4j’s <code>extensions.idx</code> file, generated by <code>kapt</code> (a compile-time code generator for Kotlin). On the <code>RegisterEvents.Started</code> event the framework starts the loaded plugins, keeps the ones that are <code>ScrapePlugin</code>s, and hands each to the driver manager.</p>
+<h3 id="The-collector-is-stateless"><a href="#The-collector-is-stateless" class="headerlink" title="The collector is stateless"></a>The collector is stateless</h3><p>There is no database, no SQLite, no local task table. The monitoring backend (Riemann) is the source of truth for what to collect. The collector is <em>stateless</em> — it keeps no memory of past work between runs — so it is a fire-and-forget agent that can be killed and restarted at any moment. The only local state is <code>scrape.conf</code> and the driver configs.</p>
+<h3 id="Two-connection-pools-on-purpose"><a href="#Two-connection-pools-on-purpose" class="headerlink" title="Two connection pools, on purpose"></a>Two connection pools, on purpose</h3><p>This one surprised me when I read the changelog. There are two pools. Monitoring items use a <strong>persistent</strong> pool. Drill-down and inspection queries use a <strong>temporary</strong> pool. The reason is stated in the 1.2.3 entry: a long ad-hoc query must not be able to starve the scheduled metrics.</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">connectData.connection = <span class="keyword">if</span> (!instance.isTemp) &#123;</span><br><span class="line">    connectionContainer[instance.connectKey()]?.getConnection(connectCall.tag())</span><br><span class="line">&#125; <span class="keyword">else</span> &#123;</span><br><span class="line">    context.collectCall.takeTempConnection(instance)</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nirvana-scrape-core/.../core/feature/ScrapeConnectionManager.kt:108</code>. The <code>if</code> is the whole idea. <code>isTemp</code> means “this connection is for a one-off query”. One-off queries get a connection of their own that is thrown away afterwards, so they cannot sit on top of a connection a scheduled metric needs. <code>connectKey()</code> is the pool key — the identity of the instance being talked to.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">┌──────────────┐  1s ticker   ┌────────────────┐  cron match</span><br><span class="line">│  Schedule    │─────────────►│ per-instance   │─────────────┐</span><br><span class="line">│  Service     │              │ bounded chan   │             │</span><br><span class="line">└──────────────┘              └────────────────┘             │</span><br><span class="line">        ▲                                                    ▼</span><br><span class="line">        │                                            ┌──────────────────┐</span><br><span class="line">        │                                            │ ScrapeCollector  │</span><br><span class="line">        │                                            │  beforeHandle    │</span><br><span class="line">        │                                            └────────┬─────────┘</span><br><span class="line">        │                                                     │</span><br><span class="line">        │              ┌──────────────────────────────────────┴───────┐</span><br><span class="line">        │              │ depends: fan out (async) → awaitAll → merge  │</span><br><span class="line">        │              └──────────────────────────────────────────────┘</span><br><span class="line">        │                                                     │</span><br><span class="line">        │                                            ┌────────▼─────────┐</span><br><span class="line">        │                                            │ Connect → Valid   │</span><br><span class="line">        │                                            │ → Collect → Render│</span><br><span class="line">        │                                            └────────┬─────────┘</span><br><span class="line">        │                                                     │</span><br><span class="line">        │                                            ┌────────▼─────────┐</span><br><span class="line">        └──────────────── Riemann events ◄────────────┤  Send            │</span><br><span class="line">                                                      └──────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>The boxes are components and the arrows show the order work flows through them. The <em>schedule service</em> wakes once a second and checks every task’s cron expression; when one matches, the task is pushed into a bounded queue — a queue with a fixed capacity, so a backlog cannot grow without limit. The <em>collector</em> picks tasks off that queue and, before collecting anything, <code>beforeHandle</code> runs the task’s <em>dependencies</em>: each one is launched concurrently with <code>async</code>, all are waited for together with <code>awaitAll</code>, and the results are merged. Only then does the pipeline itself run <code>Connect → Valid → Collect → Render</code>, and the finished values are sent on as Riemann events. The arrow on the far left curving back up is the cycle restarting: the collector keeps going forever.</p>
+<p>Two independent layers of parallelism. The engine fans out over tasks and instances:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">suspend</span> <span class="function"><span class="keyword">fun</span> <span class="title">transformTask</span><span class="params">(register: <span class="type">ScrapeRegister</span>, requestCall: <span class="type">ScrapeRequestCall</span>)</span></span> =</span><br><span class="line">    requestCall.tasks.map &#123;</span><br><span class="line">        async(createCallContext() + requestCall.coroutineContext) &#123;</span><br><span class="line">            transformInstance(register, requestCall, it)</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;.awaitAll().merge(requestCall)</span><br></pre></td></tr></table></figure>
+
+<p><code>nirvana-scrape-core/.../core/ScrapeEngine.kt:85</code>. <code>map</code> turns the list of tasks into a list of coroutines — in Kotlin, a <em>coroutine</em> is a piece of work that can pause and resume instead of blocking a thread. <code>async</code> starts each one without waiting; <code>awaitAll</code> collects the results. Both come from Kotlin’s coroutines library — the standard way to say “start several things in parallel and wait for all of them”.</p>
+<p>Dependencies are a directed acyclic graph — a set of tasks pointing at other tasks, with no loops — joined with the same <code>async</code>/<code>awaitAll</code> pair. There is no explicit “start node”: the requested task <em>is</em> the root, and its dependencies are resolved recursively through the same pipeline. That is why a metric can depend on another metric without anyone declaring an order.</p>
+<h2 id="Failure-containment"><a href="#Failure-containment" class="headerlink" title="Failure containment"></a>Failure containment</h2><p>The rule that matters in a fleet collector is that one bad instance cannot take down the request. The collection step is wrapped end to end:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">return</span> <span class="keyword">try</span> &#123;</span><br><span class="line">    <span class="keyword">val</span> connection = findInstances(context, register)?.connection</span><br><span class="line">        ?: <span class="keyword">return</span> context.defaultValue().addThrows(...)</span><br><span class="line">    connection.process(action, context)</span><br><span class="line">&#125; <span class="keyword">catch</span> (e: Exception) &#123; context.defaultValue().addThrows(e) &#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>nirvana-scrape-core/.../core/feature/ScrapeCollector.kt:287</code>. The <code>?:</code> marks are Kotlin’s shorthand for “if this is null, stop here and give back this other value”. <code>defaultValue()</code> is an empty result that can carry an attached error. So a failure becomes a <em>value</em> — an error row attached to the response — not an exception that unwinds the fan-out. If one instance throws, the other 199 still finish and still report. The original spells out the full connection-error message on the truncated line, and it also returns the empty result when the task has no matching script.</p>
+<p>A guard also runs before anything touches the wire, so a misconfigured instance fails with a clear message instead of a connection error 30 seconds later. The <code>Valid</code> phase refuses a task with an empty <code>action</code>. It also looks up the driver for the instance’s <code>driver</code> and <code>version</code> before starting, throwing a clear “can’t find driver” error if there is none.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>Blocking I/O inside coroutines.</strong> <code>connection.process(action, context)</code> is a plain blocking JDBC or SSH call inside a <code>suspend</code> function. The coroutines here buy <em>structured concurrency</em> — every spawned job belongs to a scope that tracks, cancels and waits for it — and not non-blocking I/O. The engine backs them with a dedicated <code>ThreadPoolExecutor</code>, a pool of worker threads sized from configuration.</p>
+<p>The <code>TestEngine</code> instead uses <code>Dispatchers.Default</code>, and the README admits the downside in Chinese: “灵活性偏低” — less flexible, because you cannot size it at runtime.</p>
+<p><strong>Timeouts are detected, not enforced.</strong> The scheduler compares response and request timestamps and throws a <code>TimeoutException</code> <em>after</em> the fact. Nothing cancels the in-flight query. There is a <code>ThreadPoolWithTimeoutExecutor</code> in the tree — a <code>DelayQueue</code>-based supervisor that interrupts timed-out threads — but it is commented out. The reason is sound: interrupting a JDBC call does not reliably interrupt the database, so a hard timeout would leave a worker stuck in a socket read forever. Detect the timeout, report it, and let the connection be reclaimed later.</p>
+<p><strong>SSH throughput was the real bottleneck, and the fix was a hack.</strong> The 1.2.3 changelog entry reads, roughly: optimise SSH stream reading by pausing 300 ms on each <code>InputStream</code> read, so that a single Scrape can monitor 100 Oracle instances on a 6-core host. That is a polling workaround — the reader sleeps, then checks a cache. It is the kind of fix that only makes sense once you have measured where the time actually goes.</p>
+<p><strong>The JVM’s memory cost is real.</strong> The changelog shows the pain: removing the <code>fastjson</code> dependency because it could cause OOM (out-of-memory), replacing <code>CopyOnWriteList</code> with <code>ArrayList</code> in the connection pool, removing locks in favour of lock-free structures. JVM startup time is irrelevant for a daemon. GC — garbage collection, the JVM’s automatic memory cleanup, which pauses every thread while it runs — and heap tuning are not.</p>
+<p><strong>The release build skips the tests.</strong> <code>build.sh</code> runs <code>gradle build -x test</code>. The test suite is substantial — 132 test files, ~15,600 lines, with <code>PipelinesTest</code> (21 tests on the hand-rolled pipeline) and <code>ScheduleImplTest</code> (22 on the vendored cron parser) — but the artefact that ships is built without them.</p>
+<p><strong>Two JSON stacks coexist.</strong> The core unified on GSON, while the Riemann wire events still use <code>kotlinx-serialization</code>. A small thing that costs a dependency.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>The timeout story needs to be honest in the API.</strong> A task that exceeds its timeout is reported late, and the caller cannot tell “this instance was slow” from “this instance hung”. Exposing the elapsed time next to the deadline, and treating “timed out” as a first-class outcome rather than an exception, would make the report much easier to act on.</p>
+<p><strong>The coroutine pipeline is over-engineered.</strong> The hand-rolled <code>suspendCoroutineUninterceptedOrReturn</code> saves an allocation per interceptor per task. On a fleet collector that is measurable, but it makes the pipeline the hardest part of the codebase to read and the part most likely to be subtly wrong. Keep the interceptor <em>model</em>, throw away the custom interception.</p>
+<p><strong>The SSH fix should have been a streaming fix.</strong> A 300 ms sleep per read is a global slowdown dressed as a local optimisation. The right answer is a buffered reader on a dedicated thread per host, with the coroutine awaiting a channel — a queue one task fills and another drains. It is more code, and it would have removed a whole category of performance questions.</p>
+<p><strong>And the real one: this is where the Rust rewrite comes from.</strong> The Kotlin version works and is well tested, but it ships a 40 MB fat JAR — one archive with the program and all its libraries bundled inside — pays GC pauses on a fleet collector, and runs blocking JDBC and SSH calls through a coroutine pool that was never designed for them. The next post is about the Rust rebuild: never a port, but two implementations born in the same commit.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/pf4j/pf4j">pf4j</a> — the plugin framework the drivers are built on</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/ktorio/ktor">Ktor</a> — the HTTP framework the app module is built on</li>
+<li><a target="_blank" rel="noopener" href="https://kotlinlang.org/docs/coroutines-overview.html">Kotlin coroutines</a> — what <code>async</code>, <code>awaitAll</code> and <code>suspend</code> mean</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/sshj/sshj">sshj</a> — the SSH client the host driver uses to reach monitored machines</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">RFC 4253</a> — the SSH transport protocol underneath that client</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-plugins.html">Ktor plugins</a> — how the HTTP API installs status pages and content negotiation</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-routing.html">Ktor routing</a> — how the <code>/monitor</code>, <code>/task</code> and <code>/instance</code> endpoints are declared</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-status-pages.html">Ktor status pages</a> — turning an exception into a response instead of a blank 500</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-serialization.html">Ktor serialization</a> — the JSON serialisation used by the query console</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-the-collector-is-put-together"><span class="toc-number">2.</span> <span class="toc-text">How the collector is put together</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#A-task-is-a-record-not-a-class"><span class="toc-number">2.1.</span> <span class="toc-text">A task is a record, not a class</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#A-pipeline-an-ordered-list-of-stages"><span class="toc-number">2.2.</span> <span class="toc-text">A pipeline: an ordered list of stages</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Plugins-are-the-drivers"><span class="toc-number">2.3.</span> <span class="toc-text">Plugins are the drivers</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-collector-is-stateless"><span class="toc-number">2.4.</span> <span class="toc-text">The collector is stateless</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-connection-pools-on-purpose"><span class="toc-number">2.5.</span> <span class="toc-text">Two connection pools, on purpose</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Failure-containment"><span class="toc-number">4.</span> <span class="toc-text">Failure containment</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="The registry&#x2F;resolver split, why the registrar is a separate contract, and how ENS keeps bots from sniping a name">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Name Things on a Blockchain">
+<meta property="og:url" content="http://shawhuang.com/2023/07/11/ens-contracts/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="The registry&#x2F;resolver split, why the registrar is a separate contract, and how ENS keeps bots from sniping a name">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2023-07-11T12:35:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:33:41.407Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Name Things on a Blockchain</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2023/07/20/Dali-China/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2023/05/08/Some-Paints/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-registry-stores-a-resolver-address-not-records"><span class="toc-number">2.1.</span> <span class="toc-text">The registry stores a resolver address, not records</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Events-are-the-primary-interface"><span class="toc-number">2.2.</span> <span class="toc-text">Events are the primary interface</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-registrar-is-not-the-registry"><span class="toc-number">2.3.</span> <span class="toc-text">The registrar is not the registry</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Registration-takes-two-steps-because-bots-are-faster-than-you"><span class="toc-number">2.4.</span> <span class="toc-text">Registration takes two steps, because bots are faster than you</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Reverse-resolution-needs-its-own-contract"><span class="toc-number">2.5.</span> <span class="toc-text">Reverse resolution needs its own contract</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-answers-to-%E2%80%9Cwho-may-write-records-for-this-name%E2%80%9D"><span class="toc-number">2.6.</span> <span class="toc-text">Two answers to “who may write records for this name”</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-batch-call-that-checks-its-own-homework"><span class="toc-number">4.</span> <span class="toc-text">The batch call that checks its own homework</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Name Things on a Blockchain
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2023-07-11T12:35:00.000Z" itemprop="datePublished">2023-07-11</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>A DNS name is not really yours. You rent <code>example.com</code> from a registrar — the company you pay to hold the name — and whoever controls the authoritative server for <code>example.com</code> controls every name under it. That is fine for a hierarchy run by one organisation, and completely wrong for a <em>namespace</em> — a set of names — where the participants do not trust each other.</p>
+<p><strong>What this post is about.</strong> ENS, the Ethereum Name Service, is a set of <em>smart contracts</em>: programs stored on Ethereum and run by its network. This post walks through the <code>ens-contracts</code> repository contract by contract. You will learn what a <em>registry</em>, a <em>resolver</em> and a <em>registrar</em> each do, why they are three separate contracts, and why registering a name takes two steps and a five-minute wait.</p>
+<p><strong>What you need to know first.</strong> Two words carry most of this post. A <em>contract</em> is code stored at an address on the blockchain; calling it means sending a <em>transaction</em> — a signed instruction that names a function and passes its arguments. Every transaction costs <em>gas</em>, the fee the network charges for computation and storage.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>ENS inverts the DNS arrangement. The whole namespace lives under one on-chain root — data stored in the blockchain itself — and every top-level domain (a TLD, such as <code>.eth</code>) beneath it is delegated to a contract that owns its own subtree.</p>
+<p>But “put a name on a chain” is the easy part. Four harder problems shape the design.</p>
+<ol>
+<li><strong>A name must be owned, not merely pointed at.</strong> In DNS, “ownership” is a legal relationship with a registrar; there is no asset to hold. ENS wants a name to be an asset you can sell, and a <em>sub</em>-name — a name below another, like <code>pay.alice.eth</code> under <code>alice.eth</code> — to be something a parent owner cannot quietly reclaim.</li>
+<li><strong>Records must be extensible — able to gain new kinds of data — without migrating the registry.</strong> New record types keep appearing: multichain addresses, content hashes, text records, DNSSEC proofs. If the registry stored records itself, every new type would mean redeploying it and moving every name in existence.</li>
+<li><strong>Resolution must not require trusting a server.</strong></li>
+<li><strong>Name acquisition must be fair.</strong> A first-come-first-served auction on a public <em>mempool</em> — the queue of transactions waiting to be included in a block — is a name-sniping contest.</li>
+</ol>
+<h2 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h2><h3 id="The-registry-stores-a-resolver-address-not-records"><a href="#The-registry-stores-a-resolver-address-not-records" class="headerlink" title="The registry stores a resolver address, not records"></a>The registry stores a resolver address, not records</h3><p>A <em>registry</em> here means one contract that maps a name to an address; a <em>resolver</em> is a second contract that holds the actual records. The registry’s entire state is:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">struct Record &#123;</span><br><span class="line">    address owner;</span><br><span class="line">    address resolver;</span><br><span class="line">    uint64 ttl;</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line">mapping(bytes32 =&gt; Record) records;</span><br><span class="line">mapping(address =&gt; mapping(address =&gt; bool)) operators;</span><br></pre></td></tr></table></figure>
+
+<p>The <code>bytes32</code> key is a <em>namehash</em>: a 32-byte hash of the name, so every name lives in one flat lookup table. <code>ttl</code> is how long a resolver’s answer may be cached, in seconds. The <code>operators</code> mapping records which addresses an owner has authorised to act for them (<code>contracts/registry/ENSRegistry.sol:9</code>). The registry is the root of trust for <em>ownership</em> and has no opinion about what a name resolves to: the record schema is an implementation detail of a contract you can swap per name.</p>
+<p>The price is a second hop: compute the namehash, ask the registry for the resolver address, then call <code>addr(namehash)</code> on it. The payoff is that adding EIP-2304 multichain addresses (an <em>EIP</em> is an Ethereum Improvement Proposal — one of the numbered standards documents), EIP-1577 content hashes, or EIP-634 text records never touches the registry. For a namespace whose root is <code>bytes32(0)</code>, “never migrate the registry” is the entire point.</p>
+<h3 id="Events-are-the-primary-interface"><a href="#Events-are-the-primary-interface" class="headerlink" title="Events are the primary interface"></a>Events are the primary interface</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">function setResolver(bytes32 node, address resolver)</span><br><span class="line">    public virtual override authorised(node)</span><br><span class="line">&#123;</span><br><span class="line">    emit NewResolver(node, resolver);</span><br><span class="line">    records[node].resolver = resolver;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/registry/ENSRegistry.sol:105</code>. An <em>event</em> is a log line the contract writes into the block; it returns nothing to the caller. Note the ordering: the event is emitted <em>before</em> the state write, so a client watching logs can never observe a state change that the log stream missed.</p>
+<p>The registry is therefore an append-only log with a key-value view on top. The whole ENS product — the app, the <em>subgraph</em> (an off-chain index of those events), the API — is built from logs rather than from <code>eth_call</code>, a one-off read of a contract at a single block. If state were the only truth, every consumer would have to scan the whole contract.</p>
+<h3 id="The-registrar-is-not-the-registry"><a href="#The-registrar-is-not-the-registry" class="headerlink" title="The registrar is not the registry"></a>The registrar is not the registry</h3><p>The <code>.eth</code> registrar is a separate contract that <em>owns</em> the <code>.eth</code> node in the registry. <code>BaseRegistrarImplementation</code> holds the expiry, mints an ERC-721 per label (ERC-721 is the token standard for one-of-a-kind collectibles; a <em>label</em> is one dot-separated piece of a name — <code>alice</code> in <code>alice.eth</code>), and delegates registration to <strong>controllers</strong>.</p>
+<p>The registration itself is four decisive lines (<code>contracts/ethregistrar/BaseRegistrarImplementation.sol:143</code>): it stamps the expiry as <code>block.timestamp + duration</code>, burns the old token if the name had expired, mints a new one to the owner, and writes the new owner into the registry with <code>setSubnodeOwner</code>. The surrounding function also checks that the name is available and that the caller is a controller.</p>
+<p>Controllers can register and renew, and nothing else: they cannot change ownership or shorten an expiry. So the registrar owner can replace the pricing machinery without endangering a single nameholder. That is the “separation of concerns” the README talks about.</p>
+<h3 id="Registration-takes-two-steps-because-bots-are-faster-than-you"><a href="#Registration-takes-two-steps-because-bots-are-faster-than-you" class="headerlink" title="Registration takes two steps, because bots are faster than you"></a>Registration takes two steps, because bots are faster than you</h3><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">function commit(bytes32 commitment) public override &#123;</span><br><span class="line">    if (commitments[commitment] + maxCommitmentAge &gt;= block.timestamp) &#123;</span><br><span class="line">        revert UnexpiredCommitmentExists(commitment);</span><br><span class="line">    &#125;</span><br><span class="line">    commitments[commitment] = block.timestamp;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/ethregistrar/ETHRegistrarController.sol:141</code>. The first step publishes only a <em>commitment</em>: a hash — a fixed-length fingerprint of some secret data. The contract stores the time it saw that hash, and rejects an identical commitment while the previous one is still inside its window.</p>
+<p>The hash is built from everything that matters (<code>contracts/ethregistrar/ETHRegistrarController.sol:121</code>): the label hash of the name, the owner address, the duration, a secret, the resolver, the record data, the reverse-record flag, and the owner-controlled <em>fuse</em> bits — switches that can be burned but never un-burned. The name itself never appears in the mempool between the two steps, so a competing bot cannot see it and snipe it. The owner is inside the hash too, so a third party cannot redeem your commitment and register the name to themselves.</p>
+<p>Both ends of the window are enforced at claim time (<code>contracts/ethregistrar/ETHRegistrarController.sol:252</code>). The commitment must be at least <code>minCommitmentAge</code> old, so a commit and a register cannot land in the same block, and no older than <code>maxCommitmentAge</code>, so a stale commitment cannot be used months later. If the name is already taken by then, the registration stops.</p>
+<h3 id="Reverse-resolution-needs-its-own-contract"><a href="#Reverse-resolution-needs-its-own-contract" class="headerlink" title="Reverse resolution needs its own contract"></a>Reverse resolution needs its own contract</h3><p>Forward resolution is <code>name → node → resolver → addr</code>. Reverse is <code>addr → node → resolver → name</code>, and the node is derived rather than registered: the contract computes it as <code>keccak256(abi.encodePacked(ADDR_REVERSE_NODE, sha3HexAddress(addr)))</code> (<code>contracts/registry/ReverseRegistrar.sol:151</code>), where <code>keccak256</code> is the hash function Ethereum uses everywhere and <code>abi.encodePacked</code> simply glues the two byte strings together.</p>
+<p>The <code>addr.reverse</code> subtree is a pure construct, so somebody has to own it and create the <code>addr.&lt;hash&gt;</code> entries — that is the <code>ReverseRegistrar</code>. It also answers a chicken-and-egg question — “who may set <code>name()</code> for my address?” — with a policy inside the registrar rather than a property of the address.</p>
+<h3 id="Two-answers-to-“who-may-write-records-for-this-name”"><a href="#Two-answers-to-“who-may-write-records-for-this-name”" class="headerlink" title="Two answers to “who may write records for this name”"></a>Two answers to “who may write records for this name”</h3><p>Both models are in this codebase, and the difference between them shows what ENS trades off.</p>
+<p><code>PublicResolver</code> asks the <em>registry</em> who owns the node (<code>contracts/resolvers/PublicResolver.sol:131</code>): the caller may write if it is the owner, if the registry approved it as an operator for that owner, or if it is one of two trusted contracts (the <code>.eth</code> registrar controller and the reverse registrar). If the registry’s owner is the name-wrapper contract, the resolver asks the wrapper instead, so ownership still has one home.</p>
+<p><code>NameWrapper</code> inverts it: the registry’s owner of a name <em>is the wrapper contract</em>, and the real owner is whoever holds the ERC-1155 token (the multi-token standard, where one contract can issue many token types at once). The wrapper is the only thing allowed to write to the registry for that node, and it consults fuses and expiry.</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">function getData(uint256 tokenId) public view virtual returns (address owner, uint32 fuses, uint64 expiry) &#123;</span><br><span class="line">    uint256 t = _tokens[tokenId];</span><br><span class="line">    owner = address(uint160(t));</span><br><span class="line">    expiry = uint64(t &gt;&gt; 192);</span><br><span class="line">    fuses = uint32(t &gt;&gt; 160);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/wrapper/ERC1155Fuse.sol:130</code>. The three values share one 256-bit <em>storage slot</em> — one cell of a contract’s storage — so reading a name costs one storage read instead of three. <code>&gt;&gt;</code> is a right shift: it throws away the low bits and moves the rest down. <code>t &gt;&gt; 192</code> keeps the top 64 bits, the expiry; <code>t &gt;&gt; 160</code> keeps the next 32 bits, the fuse bits; <code>address(uint160(t))</code> takes the lowest 160 bits, exactly the size of an address.</p>
+<p>A <em>fuse</em> is a one-way switch: once a bit is burned it cannot be un-burned. That is how “the parent can never take this sub-name back” becomes a promise the chain enforces. The wrapper buys four things at once. A parent can no longer silently reclaim a sub-name once <code>PARENT_CANNOT_CONTROL</code> is burned. Names can expire. Names are tradeable tokens. And the owner is a <em>token holder</em>, so an exchange can be a trusted operator without ever being trusted with the name itself.</p>
+<h2 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">  alice.eth</span><br><span class="line">      │</span><br><span class="line">      │  namehash(&quot;alice.eth&quot;) = keccak(labelhash ∘ parentnode)</span><br><span class="line">      ▼</span><br><span class="line">┌──────────────────┐   resolver address only</span><br><span class="line">│  ENS REGISTRY    │ ──────────────────────────────┐</span><br><span class="line">│  owner           │                                │</span><br><span class="line">│  resolver        │                                │</span><br><span class="line">│  ttl             │                                │</span><br><span class="line">└──────────────────┘                                ▼</span><br><span class="line">                                        ┌──────────────────────┐</span><br><span class="line">                                        │  PublicResolver      │</span><br><span class="line">                                        │  addr(node, coin)    │</span><br><span class="line">                                        │  contenthash(node)   │</span><br><span class="line">                                        │  text(node, &quot;key&quot;)   │</span><br><span class="line">                                        └──────────┬───────────┘</span><br><span class="line">                                                   │ ERC-165</span><br><span class="line">                                                   │ supportsInterface</span><br><span class="line">                                                   ▼</span><br><span class="line">                                        ┌──────────────────────┐</span><br><span class="line">                                        │  NameWrapper (owner) │  ← registry owner is the wrapper</span><br><span class="line">                                        │  ERC-1155 balance    │</span><br><span class="line">                                        │  fuses + expiry      │</span><br><span class="line">                                        └──────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>Reading the diagram: each box is a contract and each arrow is a step or a call. The top arrow turns <code>alice.eth</code> into a 32-byte namehash. The registry answers with two things — who owns the name, and the resolver’s address — and the long right-hand arrow is that dynamic hop, into code that answers <code>addr</code>, <code>contenthash</code> or <code>text</code> queries. The ERC-165 step is the standard for asking a contract “do you implement this interface?”. The wrapper box is the special case: for a wrapped name, the registry’s “owner” is the wrapper contract itself.</p>
+<h2 id="The-batch-call-that-checks-its-own-homework"><a href="#The-batch-call-that-checks-its-own-homework" class="headerlink" title="The batch call that checks its own homework"></a>The batch call that checks its own homework</h2><p>When you register a name you can set records in the same transaction. The registrar batches them with a <em>multicall</em> — one call that performs several contract calls in a row — and the batch re-derives the namehash of every sub-call, so the caller cannot set records for a <em>different</em> name:</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">for (uint256 i = 0; i &lt; data.length; i++) &#123;</span><br><span class="line">    if (nodehash != bytes32(0)) &#123;</span><br><span class="line">        bytes32 txNamehash = bytes32(data[i][4:36]);</span><br><span class="line">        require(txNamehash == nodehash, &quot;multicall: All records must have a matching namehash&quot;);</span><br><span class="line">    &#125;</span><br><span class="line">    (bool success, bytes memory result) = address(this).delegatecall(data[i]);</span><br><span class="line">    require(success);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>contracts/resolvers/Multicallable.sol:12</code>. Each <code>data[i]</code> is <em>calldata</em> — the raw bytes a call carries to name a function and its arguments. The first 4 bytes name the function, so the namehash is the first full 32-byte word after them, at positions 4 to 36. Any sub-call naming a different name rejects the whole batch. The <code>delegatecall</code> runs each sub-call as if it were part of this contract — same storage, same permissions. The full version also collects each sub-call’s return value into a <code>results</code> array and returns it.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>Registration costs three transactions and a mandatory wait.</strong> Commit, wait at least <code>minCommitmentAge</code> (five minutes on mainnet), then register. That is roughly double the transaction count of a naive registrar — the price of keeping bots from sniping names out of the mempool.</p>
+<p><strong>There is no name normalisation on chain, and that surprises people.</strong> The contracts contain no punycode — the encoding that writes <code>你好吗</code> as ASCII — and no UTS-46, the rulebook that decides which spelling of a name is canonical. <code>makeCommitment</code> hashes <code>keccak256(bytes(name))</code> over whatever raw UTF-8 the client sent, so <code>&quot;你好吗&quot;</code> and <code>&quot;xn--6qq79v&quot;</code> produce <strong>different labelhashes for the same visual name</strong>. Normalisation is a client-side convention; the on-chain rules are only a minimum of three code points and a 255-byte cap.</p>
+<p><strong>Resolution is a dynamic call into code you chose.</strong> The registry hands you an address; that address decides what <code>addr()</code> returns, and it can lie. <code>InterfaceResolver</code> makes a <code>staticcall</code> — a call that cannot change any state — into whatever <code>addr()</code> returned: user-controlled code. <code>Multicallable</code> <code>delegatecall</code>s into itself with attacker-supplied calldata. <code>UniversalResolver</code> can be redirected into off-chain CCIP-read lookups (where the client fetches data off chain and proves it on chain). Every mitigation is <em>policy</em>, not proof: ERC-165 so a client can ask for a capability, a namehash check so a privileged caller cannot touch another name, and the assumption that you picked the resolver.</p>
+<p><strong>“DNS” means two unrelated things in this codebase.</strong> <code>DNSResolver</code> stores real DNS RRsets — the set of DNS records for one name — on chain. <code>DNSRegistrar</code> lets the holder of a DNS zone (a part of the DNS tree a party controls) claim the matching ENS name by proving a DNSSEC chain of trust (DNSSEC cryptographically signs DNS records). It refuses to let you claim <code>com</code> by checking that the parent is a public suffix — a suffix anyone can register under. Same word, two features.</p>
+<p><strong>Expired is a revert, not a zero.</strong> <code>ownerOf</code> reverts — fails and undoes itself — after expiry rather than returning the zero address, and <code>recordExists</code> is simply <code>owner != 0x0</code>. The registry has no separate existence flag, so “registered” and “has an owner” are the same statement, and off-chain code must handle that.</p>
+<p><strong>The subnode owner can still take a sub-name back.</strong> Unless <code>PARENT_CANNOT_CONTROL</code> has been burned, the parent can overwrite the child’s owner and resolver. Burning that fuse is irreversible until the name expires; the wrapper exists mostly to make this relationship explicit and one-way.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Normalisation should be pinned down, not assumed.</strong> Two clients hashing the same visual name differently is a footgun the chain permits. Either the namehash specification fixes normalisation, or the contract normalises before hashing, or the registry refuses a label whose normalised form differs from its raw form. Today the guarantee lives in the clients alone.</p>
+<p><strong>The fuse bit-packing saves gas, and the state machine it encodes does not.</strong> Owner, 32 fuse bits and a 64-bit expiry in one <code>uint256</code> is a real gas win, but the wrapper’s state machine (Unregistered → Unwrapped → Wrapped → Emancipated → Locked) is hard to reason about. I would spend the extra gas on a plain struct and keep the audit surface small.</p>
+<p><strong>Expiry should be visible, not a revert.</strong> Every off-chain reader has to catch the failing <code>ownerOf</code> call and interpret it. Returning zero with an <code>expired</code> flag would make the awkward case explicit instead of exceptional.</p>
+<p><strong>The DNSSEC oracle — the on-chain verifier for those DNS proofs — is a large attack surface for a small feature.</strong> It brings RSA, ECDSA and multiple digest algorithms into the trust boundary of a naming system. The “is the parent a public suffix” check is the right instinct, but the feature deserves to be isolated from the core.</p>
+<p><strong>And the deployment scripts should not have a mainnet branch that does nothing.</strong> The mainnet deploy scripts return early and point at archived artifacts — <code>PublicResolver_mainnet_9412610</code>, <code>ETHRegistrarController_mainnet_9380471</code> — that live in a <code>deployments/archive</code> directory which is not in this checkout. A reader who runs the deployment gets a confusing failure instead of a clear “not reproducible from this tree”.</p>
+<p>This tree is the upstream ENS repository, audited and running on mainnet, but the working tree has drifted into a private-chain experiment (<code>lixb</code> / <code>lixbtest</code> networks, an ERC-721 variant of the wrapper, an ERC-20 payment path — ERC-20 being the standard for interchangeable tokens). The core machinery has survived years on mainnet; the private-chain parts have not, and the criticism above is about the former.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/ensdomains/ens-contracts">ensdomains/ens-contracts</a> — the repository this post walks through</li>
+<li><a target="_blank" rel="noopener" href="https://docs.ens.domains/">ENS documentation</a> — user and developer guides</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-137">EIP-137: ENS specification</a> — namehash and the original standard</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-181">EIP-181: reverse resolution</a> — how <code>addr.reverse</code> works</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-165">EIP-165: interface detection</a> — asking a contract what it implements</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-205">EIP-205: contract ABIs</a> — how resolvers advertise methods</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-2304">EIP-2304: multichain addresses</a> — addresses for other chains</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-634">EIP-634: text records</a> — arbitrary key/value text on a name</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-619">EIP-619: SECP256k1 public keys</a> — publishing a public key as a record</li>
+<li><a target="_blank" rel="noopener" href="https://eips.ethereum.org/EIPS/eip-1577">EIP-1577: contenthash</a> — pointing a name at decentralized content</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/OpenZeppelin/openzeppelin-contracts">OpenZeppelin Contracts</a> — the audited library ENS builds on</li>
+<li><a target="_blank" rel="noopener" href="https://docs.soliditylang.org/">Solidity documentation</a> — the language the contracts are written in</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-this-design"><span class="toc-number">2.</span> <span class="toc-text">Why this design</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-registry-stores-a-resolver-address-not-records"><span class="toc-number">2.1.</span> <span class="toc-text">The registry stores a resolver address, not records</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Events-are-the-primary-interface"><span class="toc-number">2.2.</span> <span class="toc-text">Events are the primary interface</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#The-registrar-is-not-the-registry"><span class="toc-number">2.3.</span> <span class="toc-text">The registrar is not the registry</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Registration-takes-two-steps-because-bots-are-faster-than-you"><span class="toc-number">2.4.</span> <span class="toc-text">Registration takes two steps, because bots are faster than you</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Reverse-resolution-needs-its-own-contract"><span class="toc-number">2.5.</span> <span class="toc-text">Reverse resolution needs its own contract</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Two-answers-to-%E2%80%9Cwho-may-write-records-for-this-name%E2%80%9D"><span class="toc-number">2.6.</span> <span class="toc-text">Two answers to “who may write records for this name”</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-it-works"><span class="toc-number">3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-batch-call-that-checks-its-own-homework"><span class="toc-number">4.</span> <span class="toc-text">The batch call that checks its own homework</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">5.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

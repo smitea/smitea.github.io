@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="Two small Python tools, one lesson: wrap what you must, own the protocol when you can, and put a tripwire on whatever you ended up wrapping.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Wrap a Tool Without Hiding the Protocol">
+<meta property="og:url" content="http://shawhuang.com/2026/09/02/security-tools/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="Two small Python tools, one lesson: wrap what you must, own the protocol when you can, and put a tripwire on whatever you ended up wrapping.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2026-09-02T12:40:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T01:53:19.173Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Wrap a Tool Without Hiding the Protocol</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2026/09/10/net-scan/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2024/05/09/evm-network-and-explorer/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-first-tool-CameraHack"><span class="toc-number">1.</span> <span class="toc-text">The first tool: CameraHack</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-situation"><span class="toc-number">1.1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-this-design"><span class="toc-number">1.2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#How-it-works"><span class="toc-number">1.3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#What-it-got-wrong"><span class="toc-number">1.4.</span> <span class="toc-text">What it got wrong</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-second-tool-aircrack-ng-gui-macos"><span class="toc-number">2.</span> <span class="toc-text">The second tool: aircrack-ng_gui_macos</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-situation-1"><span class="toc-number">2.1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-this-design-1"><span class="toc-number">2.2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#What-it-got-wrong-1"><span class="toc-number">2.3.</span> <span class="toc-text">What it got wrong</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-lesson"><span class="toc-number">3.</span> <span class="toc-text">The lesson</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">4.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Wrap a Tool Without Hiding the Protocol
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2026-09-02T12:40:00.000Z" itemprop="datePublished">2026-09-02</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p><strong>What this post is about.</strong> Two small Python tools — a batch camera scanner and a macOS GUI for aircrack-ng — that share almost nothing except a size. Together they taught me one lesson I have applied to every security tool since: <strong>wrap, don’t reimplement — but own the protocol when you can.</strong></p>
+<p><strong>What you need to know first.</strong> A <em>protocol</em> is the agreed sequence of messages two programs exchange. A <em>CLI</em> is a command-line interface: a tool you drive by typing commands with flags. A <em>wrapper</em> is a program that does not implement a protocol itself but calls something that does, and then presents the result in a different shape. <em>tkinter</em> is the widget toolkit that ships with Python, and it draws ordinary desktop windows. You do not need to have run any of these tools to follow this post.</p>
+<h2 id="The-first-tool-CameraHack"><a href="#The-first-tool-CameraHack" class="headerlink" title="The first tool: CameraHack"></a>The first tool: CameraHack</h2><h3 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h3><p>A penetration-testing team had an asset inventory. Thousands of internet-exposed IP addresses, and a question that was not “can I get in” but “which of these are worth getting into”. Three days of manual triage against thousands of hosts does not work. An <em>asset inventory</em> is the list of machines a team is responsible for, and <em>triage</em> is the work of sorting that list into “worth attacking” and “not worth attacking”.</p>
+<p>The repository ships the answer to that question: a corpus of 6,963 candidate IPs, 3,153 hosts flagged for a Dahua CVE, and 3,381 recorded findings. A <em>CVE</em> is a public identifier for a published vulnerability — one number that names one flaw in one version of one piece of software. The scanner is the tool that produced them.</p>
+<h3 id="Why-this-design"><a href="#Why-this-design" class="headerlink" title="Why this design"></a>Why this design</h3><p><strong>One generic probe first, brand probes second.</strong> An RTSP server — RTSP is the protocol cameras use to stream video — often accepts a bare root URL with no path at all, so the tool tries the simplest possible request against every host before it knows what the host is:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">rtsp</span>(<span class="params">ip: <span class="built_in">str</span></span>) -&gt; <span class="built_in">bool</span>:</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> Check_Port(ip, <span class="number">554</span>):</span><br><span class="line">        logger.error(<span class="string">f&quot;IP:<span class="subst">&#123;ip&#125;</span> rtsp端口未开放！&quot;</span>); <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">    easy_res = easypwd_get_rtsp(ip, easy_rtsp)</span><br><span class="line">    <span class="keyword">if</span> easy_res:</span><br><span class="line">        save_res(<span class="string">f&quot;[+] <span class="subst">&#123;ip&#125;</span>存在<span class="subst">&#123;easy_res[<span class="number">1</span>]&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">elif</span> hk_get_rtsp(ip, hk_rtsp):</span><br><span class="line">        save_res(<span class="string">f&quot;[+] <span class="subst">&#123;ip&#125;</span>存在海康威视弱密码!&quot;</span>)</span><br></pre></td></tr></table></figure>
+
+<p><code>CameraHack/main.py:64</code>. Port 554 is the default RTSP port, and <code>Check_Port</code> is the pre-filter described below. The order is the design: cheap and generic first, expensive and specific second. The generic probe uses <code>ffmpeg</code> as the client and its exit code as the oracle — an <em>oracle</em> is anything that tells you the answer by whether it succeeds or fails — which is a hack, but it is a hack that gives you a full RTSP client for free.</p>
+<p><strong>Weak passwords and auth bypass are separate code paths.</strong> <em>Auth bypass</em> is a flaw that lets you in without the password at all. The two are reported differently (<code>存在海康威视弱密码</code>, meaning a Hikvision weak password, versus <code>存在海康威视漏洞</code>, meaning a Hikvision vulnerability) because they have different remediation: rotate the password, or patch the firmware. Conflating them would have produced a report that a reader could not act on.</p>
+<p><strong>The port pre-filter is the entire crash-avoidance strategy.</strong> There is no sniffing, no protocol negotiation, no graceful degradation per brand. One TCP connect with a one-second timeout decides whether the host is worth touching:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">with</span> ThreadPoolExecutor(max_workers=<span class="number">20</span>) <span class="keyword">as</span> pool:</span><br><span class="line">    <span class="keyword">for</span> ip <span class="keyword">in</span> load_ips():</span><br><span class="line">        <span class="comment"># payload(ip)</span></span><br><span class="line">        pool.submit(payload, ip)</span><br></pre></td></tr></table></figure>
+
+<p><code>CameraHack/main.py:114</code>. Twenty threads — twenty things happening at once — one <em>syscall</em>, one call into the operating system, of wasted time per dead host, and every payload function only ever sees a host that answered.</p>
+<p><strong>The proof of success is a file.</strong> A successful RTSP probe writes a 1280×720 JPEG snapshot; a successful CVE probe writes an HTTP snapshot. For a triage workflow, the <em>artifact</em> — the file the probe produced — is the deliverable: it is what you paste into the report, and it is what proves the finding was not a false positive. A <em>false positive</em> is a result that looks like a finding but is not one, and a picture of the device’s login page is the cheapest way to rule one out.</p>
+<h3 id="How-it-works"><a href="#How-it-works" class="headerlink" title="How it works"></a>How it works</h3><p>The scanner has three brands of handling: generic RTSP, Hikvision (RTSP URL variants plus the CVE-2017-7921 auth-bypass endpoints), and Dahua (CVE-2021-33044 token grab plus its own RTSP URL scheme).</p>
+<p>The Dahua token grab is deliberately loose about the response:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">r = self.session.post(url, json=post_json)</span><br><span class="line"><span class="keyword">if</span> r.status_code != <span class="number">200</span>:</span><br><span class="line">    logger.info(<span class="string">f&quot;[-] 大华摄像头 token 获取失败 请求码:<span class="subst">&#123;r.status_code&#125;</span>&quot;</span>)</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">r = r.json()</span><br><span class="line"><span class="keyword">if</span> <span class="string">&#x27;True&#x27;</span> <span class="keyword">in</span> <span class="built_in">str</span>(r):</span><br><span class="line">    self.token = r[<span class="string">&quot;session&quot;</span>]</span><br></pre></td></tr></table></figure>
+
+<p><code>CameraHack/dahua/bypass.py:23</code>. The check is a substring test on the serialized body rather than a schema check, because firmware revisions disagree about the field names. A <em>schema</em> is the expected shape of a message; by skipping it, the code works across revisions that name the same field differently.</p>
+<p>The most interesting file is not the scanner at all — it is <code>DaHua_autoAddUser.py</code>, a Playwright script that adds a user through the camera’s web UI. Playwright drives a real browser, clicking and typing as a person would. Different Dahua firmware revisions lay out the form differently, so the script keeps a table of three XPath sets and tries them in order — an <em>XPath</em> is a way of naming one element on a web page, like “the second input box in the third form” — and on the final failure it screenshots the page, so the failure itself becomes an artifact for forensics.</p>
+<h3 id="What-it-got-wrong"><a href="#What-it-got-wrong" class="headerlink" title="What it got wrong"></a>What it got wrong</h3><p><strong>There is no rate limiting.</strong> Twenty threads against 6,963 hosts, with an <code>ffmpeg</code> process spawned per attempt. A <em>rate limit</em> caps how many requests a tool sends per second; without one, a <em>denial-of-service vector</em> is a way of making a service unavailable by overwhelming it. On an authorised engagement that is your own infrastructure to protect; against a third party’s, it is a denial-of-service vector. This is the first thing I would fix.</p>
+<p><strong><code>ffmpeg</code>‘s stderr is discarded</strong>, so a failed authentication is indistinguishable from a missing codec. Every failure is re-derived by retrying with a different URL.</p>
+<p><strong>The path is hardcoded</strong>: <code>C:\Users\WhaleFall\Desktop\py_photo</code>, even though the rest of the code uses <code>pathlib</code> throughout.</p>
+<p><strong><code>requirements.txt</code> lists only <code>pycryptodome</code></strong>, while the code imports <code>httpx</code>, <code>loguru</code>, <code>playwright</code> and <code>pyppeteer_stealth</code>. The setup is effectively undocumented, which is why there is a committed <code>.venv</code>.</p>
+<p><strong>A function is defined twice.</strong> <code>handle_macsan_json</code> appears at <code>main.py:37</code> and again at <code>main.py:126</code>; the first is dead.</p>
+<p><strong>No rate limit, no config, no tests, no CLI.</strong> It is a working prototype from 2022 that was abandoned, and it produced 3,381 findings before it was.</p>
+<h2 id="The-second-tool-aircrack-ng-gui-macos"><a href="#The-second-tool-aircrack-ng-gui-macos" class="headerlink" title="The second tool: aircrack-ng_gui_macos"></a>The second tool: aircrack-ng_gui_macos</h2><h3 id="The-situation-1"><a href="#The-situation-1" class="headerlink" title="The situation"></a>The situation</h3><p>Aircrack-ng is a command-line tool with a memorised invocation grammar: scan, sniff, capture, crack, four flags in an order you have to remember. The author of this tool wanted a one-click front end.</p>
+<p>It is 143 lines of tkinter in one file, and it teaches a different half of the same lesson.</p>
+<h3 id="Why-this-design-1"><a href="#Why-this-design-1" class="headerlink" title="Why this design"></a>Why this design</h3><p><strong>It wraps; it does not reimplement.</strong> Packet capture, handshake cracking and driver handling are the hard parts, and they already exist. The GUI contributes only the screen furniture around the command — the <em>UX</em>: a channel dropdown, a password field, file pickers, a console pane.</p>
+<p><strong>Long-running work is handed to Terminal.</strong> This is the decision the rest of the repository is built around, and it is a lesson about tool boundaries rather than about security:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">open_new_terminal_and_run_command</span>(<span class="params">command</span>):</span><br><span class="line">    apple_script = <span class="string">f&#x27;tell app &quot;Terminal&quot; to do script &quot;<span class="subst">&#123;command&#125;</span>&quot;&#x27;</span></span><br><span class="line">    subprocess.run([<span class="string">&quot;osascript&quot;</span>, <span class="string">&quot;-e&quot;</span>, apple_script])</span><br></pre></td></tr></table></figure>
+
+<p>Aircrack’s progress display uses terminal control sequences that Tk cannot render. Instead of trying to reimplement or escape them, the tool opens a real Terminal window running the real command. The user gets the authentic progress bar, and the GUI does not have to understand a single byte of it.</p>
+<p><strong>Everything else runs in-process, streaming into a text widget:</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">execute_command</span>(<span class="params">text_box, password, cmd</span>):</span><br><span class="line">    process = Popen(cmd, shell=<span class="literal">True</span>, stdout=PIPE, stderr=STDOUT, text=<span class="literal">True</span>)</span><br><span class="line">    <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">        output = process.stdout.readline()</span><br><span class="line">        <span class="keyword">if</span> output:</span><br><span class="line">            text_box.insert(tk.END, output); text_box.see(tk.END)</span><br><span class="line">        <span class="keyword">elif</span> process.poll() <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">break</span></span><br></pre></td></tr></table></figure>
+
+<p><code>aircrack-ng_gui_macos/main.py:10</code>. <code>Popen</code> starts the command and returns a handle to it; <code>stdout.readline</code> reads one line at a time as it arrives, so the window fills in while the command runs instead of after it finishes.</p>
+<h3 id="What-it-got-wrong-1"><a href="#What-it-got-wrong-1" class="headerlink" title="What it got wrong"></a>What it got wrong</h3><p><strong>The sudo password is interpolated into a command line</strong>, which means it is visible in <code>ps</code> output and in shell history:</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">cmd = <span class="string">f&quot;echo <span class="subst">&#123;password&#125;</span> | sudo -S /System/Library/PrivateFrameworks/Apple80211.framework/Versions/A/Resources/airport en0 sniff <span class="subst">&#123;selected_channel&#125;</span>&quot;</span></span><br></pre></td></tr></table></figure>
+
+<p><strong><code>shell=True</code> with f-strings everywhere.</strong> The BSSID — the access point’s hardware address — and dictionary paths are not quoted. Passing a command as a string asks the operating system to run it through a <em>shell</em>, which interprets anything that looks like a shell operator, so an unquoted filename can turn into somebody else’s command. This is a quoting bug waiting for a filename with a space in it.</p>
+<p><strong>Process cleanup is <code>ps | grep | awk</code></strong> — the code runs a pipeline that lists processes, filters for the ones matching a name, and prints their process IDs. That is not a design, it is an admission that the previous design leaked processes. The same leak is why <code>is_listening</code> is a global mutated from the Tk thread: click twice during a scan and you can orphan a <code>sudo</code> process.</p>
+<p><strong>And then the platform moved.</strong> <code>airport</code> provides <code>sniff</code> but <strong>no monitor mode</strong>, so this tool can capture but cannot inject or deauthenticate — it cannot perform the attacks aircrack-ng is famous for. <em>Monitor mode</em> is the state a Wi-Fi adapter can be put into where it captures raw radio traffic, and it is what injecting and deauthenticating require. On macOS Sonoma (through 14.4) Apple removed the <code>airport</code> CLI’s command surface entirely, and the README’s first line is a warning about exactly this.</p>
+<p>A 143-line wrapper around a binary that the OS vendor deleted is not a design decision; it is a deadline.</p>
+<h2 id="The-lesson"><a href="#The-lesson" class="headerlink" title="The lesson"></a>The lesson</h2><p>Both tools wrap an external capability rather than reimplementing it, and both are worse for it — but not for the same reason.</p>
+<p>CameraHack’s problem is that it wrapped <em>too loosely</em>. It used <code>ffmpeg</code> as an oracle, threw away its diagnostics, spawned a process per attempt, and had no rate limit. The wrapper was the whole design, and the wrapper was where all the fragility lived.</p>
+<p>The GUI’s problem is the mirror image: it wrapped <code>airport</code> tightly enough to depend on a binary Apple was actively removing, and it did not notice.</p>
+<p>The rule I took from both:</p>
+<p><strong>If you can own the protocol, own it.</strong> CameraHack’s RTSP probing should have been a real RTSP client that parsed the response and reported the actual reason for failure — the port pre-filter should have been a first-class step, not an accident of exception handling, and the artifact should have been a structured finding plus a snapshot, not a text line.</p>
+<p><strong>If you must wrap, wrap at the narrowest point that still works.</strong> The GUI’s Terminal handoff is the good version of wrapping: it delegates one specific, slow, hard-to-render job to the tool that already does it best, and keeps everything else in-process.</p>
+<p><strong>And check that the thing you wrap still exists.</strong> <code>airport</code> was deprecated by the OS vendor on a schedule. A wrapper needs a tripwire — a version check, a <code>--doctor</code> that fails loudly, a CI job on the target OS version — because the thing you are wrapping has its own roadmap, and it is not yours. A <em>tripwire</em> is a check designed to fail loudly rather than a test that is allowed to pass quietly, and a <em>CI job</em> is one that runs automatically on every change.</p>
+<p>None of this is a case for not writing small tools. CameraHack turned three days of manual triage into an afternoon, and that is worth a hundred lines of <code>ThreadPoolExecutor</code>. It is a case for knowing which parts of your tool are load-bearing and making sure those parts are yours.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/aircrack-ng/aircrack-ng">aircrack-ng</a> — the command-line tool suite the second project wraps with a tkinter front end</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/anbuinfosec/wipwn">WIPWN</a> — another wrapping-vs-owning case study, this time for the WPS protocol</li>
+<li><a target="_blank" rel="noopener" href="https://nvd.nist.gov/">NVD</a> — the National Vulnerability Database, where the CVEs referenced by both tools are published</li>
+<li><a target="_blank" rel="noopener" href="https://www.rfc-editor.org/rfc/rfc4253.html">RFC 4253</a> — the SSH transport protocol specification, a worked example of a framed request/response protocol</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-first-tool-CameraHack"><span class="toc-number">1.</span> <span class="toc-text">The first tool: CameraHack</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-situation"><span class="toc-number">1.1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-this-design"><span class="toc-number">1.2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#How-it-works"><span class="toc-number">1.3.</span> <span class="toc-text">How it works</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#What-it-got-wrong"><span class="toc-number">1.4.</span> <span class="toc-text">What it got wrong</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-second-tool-aircrack-ng-gui-macos"><span class="toc-number">2.</span> <span class="toc-text">The second tool: aircrack-ng_gui_macos</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#The-situation-1"><span class="toc-number">2.1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Why-this-design-1"><span class="toc-number">2.2.</span> <span class="toc-text">Why this design</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#What-it-got-wrong-1"><span class="toc-number">2.3.</span> <span class="toc-text">What it got wrong</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-lesson"><span class="toc-number">3.</span> <span class="toc-text">The lesson</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">4.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

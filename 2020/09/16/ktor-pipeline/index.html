@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="An HTTP control plane in Ktor, a second pipeline of my own in the core, and the places where the two leak into each other">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Use Ktor&#39;s Pipeline in a Real Service">
+<meta property="og:url" content="http://shawhuang.com/2020/09/16/ktor-pipeline/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="An HTTP control plane in Ktor, a second pipeline of my own in the core, and the places where the two leak into each other">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2020-09-16T11:45:00.000Z">
+<meta property="article:modified_time" content="2026-10-22T18:15:56.028Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Use Ktor&#39;s Pipeline in a Real Service</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2020/09/18/plugin-system/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2020/08/12/nirvana-bee/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-Ktor-for-the-HTTP-side"><span class="toc-number">2.</span> <span class="toc-text">Why Ktor for the HTTP side</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-plugin-stack"><span class="toc-number">3.</span> <span class="toc-text">The plugin stack</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#StatusPages-is-where-the-error-contract-lives"><span class="toc-number">3.1.</span> <span class="toc-text">StatusPages is where the error contract lives</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#ContentNegotiation-decides-what-a-missing-field-costs-you"><span class="toc-number">3.2.</span> <span class="toc-text">ContentNegotiation decides what a missing field costs you</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Authentication-is-installed-and-permanently-skipped"><span class="toc-number">3.3.</span> <span class="toc-text">Authentication is installed and permanently skipped</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#A-second-pipeline-in-the-core"><span class="toc-number">4.</span> <span class="toc-text">A second pipeline, in the core</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Two-pipelines-one-seam"><span class="toc-number">5.</span> <span class="toc-text">Two pipelines, one seam</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Where-the-blocking-work-leaks"><span class="toc-number">6.</span> <span class="toc-text">Where the blocking work leaks</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">7.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">8.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">9.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Use Ktor&#39;s Pipeline in a Real Service
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2020-09-16T11:45:00.000Z" itemprop="datePublished">2020-09-16</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>A monitoring collector needs two things that look like one thing: an HTTP API for operators, and a pipeline of work that runs when an API call asks for a metric. In this project they are genuinely two pipelines, in two modules, that never share a single object — and getting that separation right was most of the design.</p>
+<p>The interesting part is that the core <strong>copied Ktor’s pipeline implementation</strong> to stay framework-free, and then the two copies drifted apart in instructive ways.</p>
+<p><strong>What this post is about.</strong> It is about Ktor’s <em>pipeline</em> — an ordered list of stages; each stage holds a few functions that run in turn; an <em>interceptor</em> is one of those functions — and about what happens when a project needs the same idea in two places. You will learn how Ktor assembles an HTTP server out of installed plugins, how the collector’s own copy of the pipeline works, and where the two leak into each other.</p>
+<p><strong>What you need to know first.</strong> Ktor is a Kotlin web framework that runs on Netty, the Java networking library, and its handlers are <em>coroutines</em>: functions that can pause and resume instead of blocking a thread. Nothing else here is special-cased.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>The product is an always-on collector that pulls metrics from customer databases and hosts. It has to expose an HTTP control plane: register instances, run a task on demand, inspect a connection, watch the logs, check health. That API is a thin shell over a core that does the real work.</p>
+<p>The constraint that shaped everything: <strong>the core must not depend on Ktor.</strong> Its <code>build.gradle</code> declares <code>dependencies &#123; &#125;</code> — empty. The core has to be embeddable in any host application, including ones that are not HTTP services at all, and the same core has to run under a different vendor’s commercial product.</p>
+<p>So the HTTP layer lives in the app module, and the collection layer lives in the core, and neither imports the other.</p>
+<h2 id="Why-Ktor-for-the-HTTP-side"><a href="#Why-Ktor-for-the-HTTP-side" class="headerlink" title="Why Ktor for the HTTP side"></a>Why Ktor for the HTTP side</h2><p>The alternatives were Spring Boot, plain Netty, or Ktor.</p>
+<p>Spring Boot would have brought a DI container, classpath scanning, Tomcat and an actuator — for a service whose whole point is to be a single shaded jar dropped onto a customer host. Ktor gives coroutine-native handlers, an embedded Netty server with no servlet container, and a plugin model that composes with the way the author already thought about pipelines.</p>
+<p>Plain Netty would have meant hand-writing HTTP parsing, routing, content negotiation and error mapping — which is exactly the ~140 lines that <code>HttpModule.kt</code> buys.</p>
+<p>The application is assembled programmatically rather than through <code>EngineMain</code> (Ktor’s own entry point that reads configuration from Ktor’s hierarchy), because the configuration does not come from that hierarchy at all: a custom HOCON file is read by Typesafe Config, rendered to JSON and parsed by Gson into a <code>JsonObject</code>, then digested into typed config classes. Using <code>EngineMain</code> would have meant two competing sources of truth. The server is started with <code>embeddedServer(Netty, ...)</code>, and the Netty group sizes are hand-tuned: half the cores for connections and workers, all of them for calls, because a call is the expensive part.</p>
+<h2 id="The-plugin-stack"><a href="#The-plugin-stack" class="headerlink" title="The plugin stack"></a>The plugin stack</h2><p>Ktor’s pipeline is a sequence of <em>phases</em>, each holding interceptors. This application installs six features, in this order:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">fun</span> Application.<span class="title">module</span><span class="params">(register: <span class="type">ScrapeRegister</span>, config: <span class="type">ApplicationConfig</span>)</span></span> &#123;</span><br><span class="line">    install(DefaultHeaders)</span><br><span class="line">    install(DropwizardMetrics) &#123; ... &#125;</span><br><span class="line">    install(StatusPages) &#123; ... &#125;</span><br><span class="line">    install(ContentNegotiation) &#123; jackson &#123; enable(SerializationFeature.INDENT_OUTPUT) &#125; &#125;</span><br><span class="line">    install(Authentication) &#123; basic &#123; skipWhen &#123; <span class="literal">true</span> &#125; &#125; &#125;</span><br><span class="line">    install(Routing) &#123; ... &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>install</code> adds a <em>feature</em>: a bundle of interceptors that Ktor merges into its pipeline at the right place. <code>DefaultHeaders</code> adds <code>Date</code>/<code>Server</code> to every response. <code>DropwizardMetrics</code> collects Ktor’s own <code>ktor.calls.*</code> timers. <code>StatusPages</code> turns exceptions into responses. <code>ContentNegotiation</code> handles JSON. <code>Authentication</code> handles credentials. <code>Routing</code> holds the five route groups. The <code>&#123; ... &#125;</code> blocks are the per-feature configuration; the <code>StatusPages</code> and <code>Routing</code> ones are filled in further down.</p>
+<p>Not installed, and worth noting: no <code>CallLogging</code>, no <code>CORS</code>, no <code>Compression</code>, no <code>CallId</code>, no <code>Sessions</code>, no <code>RequestValidation</code>.</p>
+<h3 id="StatusPages-is-where-the-error-contract-lives"><a href="#StatusPages-is-where-the-error-contract-lives" class="headerlink" title="StatusPages is where the error contract lives"></a>StatusPages is where the error contract lives</h3><figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">exception&lt;ScrapeException&gt; &#123; cause -&gt;</span><br><span class="line">    call.respond(HttpStatusCode.BadRequest,</span><br><span class="line">        mapOf(<span class="string">&quot;code&quot;</span> to cause.code, <span class="string">&quot;message&quot;</span> to (cause.message ?: cause.localizedMessage)))</span><br><span class="line">&#125;</span><br><span class="line">exception&lt;Exception&gt; &#123; cause -&gt;          <span class="comment">// catch-all: server faults → 400</span></span><br><span class="line">    call.respond(HttpStatusCode.BadRequest,</span><br><span class="line">        mapOf(<span class="string">&quot;code&quot;</span> to OTHER, <span class="string">&quot;message&quot;</span> to (cause.message ?: cause.localizedMessage)))</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>exception&lt;T&gt;</code> registers a handler for one exception type: when a request throws it, the handler builds the response. <code>call.respond</code> sends that response; <code>mapOf</code> builds a two-entry map that is serialised as a JSON object, so every error body has a numeric <code>code</code> and a <code>message</code>. The first handler is for the application’s own <code>ScrapeException</code>; the second catches everything else.</p>
+<p>Ktor’s handler lookup is exact class first, then superclasses, then interfaces, so <code>ScrapeCollectException</code> (a subclass of <code>ScrapeException</code>) lands on the right handler regardless of registration order.</p>
+<p>The catch-all is the interesting part: <strong>every unexpected error becomes a 400 Bad Request.</strong> A database that fell over and a client that sent a malformed body produce the same status code. The body does carry a code (<code>500001</code> for “other”), but every client that only looks at the status code cannot tell them apart.</p>
+<h3 id="ContentNegotiation-decides-what-a-missing-field-costs-you"><a href="#ContentNegotiation-decides-what-a-missing-field-costs-you" class="headerlink" title="ContentNegotiation decides what a missing field costs you"></a>ContentNegotiation decides what a missing field costs you</h3><p><code>ContentNegotiation</code> is installed with Jackson, not kotlinx-serialization, and <code>jackson &#123; enable(SerializationFeature.INDENT_OUTPUT) &#125;</code> turns on pretty-printed JSON. <code>jacksonObjectMapper()</code> brings the Kotlin module, which means <code>FAIL_ON_UNKNOWN_PROPERTIES</code> stays <strong>on</strong> — so a request body missing a non-default constructor parameter throws <code>MissingKotlinParameterException</code>, which the catch-all turns into a 400. This is why the route tests assert <code>BadRequest</code> for some inputs: the DTOs are strict, and strictness is expressed as a client error.</p>
+<h3 id="Authentication-is-installed-and-permanently-skipped"><a href="#Authentication-is-installed-and-permanently-skipped" class="headerlink" title="Authentication is installed and permanently skipped"></a>Authentication is installed and permanently skipped</h3><p><code>basic &#123; skipWhen &#123; true &#125; &#125;</code> disables the basic-auth provider outright. In Ktor 1.3.0, <code>skipWhen &#123; true &#125;</code> takes the “fast path” branch: the provider is never merged into the pipeline, no challenge is issued, and the <code>validate</code> block — the code that would compare the password with <code>config.httpConfig.authConfig.password</code> and return a <code>UserIdPrincipal</code> on a match — is <strong>dead code</strong>. <code>AuthConfig.enabled</code> is parsed from the config file and then never consulted anywhere. The API is effectively unauthenticated, and the code reads as if it were not.</p>
+<h2 id="A-second-pipeline-in-the-core"><a href="#A-second-pipeline-in-the-core" class="headerlink" title="A second pipeline, in the core"></a>A second pipeline, in the core</h2><p>Since the core cannot depend on Ktor, it carries its own copy. <code>core/common/Pipelines.kt</code> is a near-verbatim port of Ktor 1.3.0’s <code>io.ktor.util.pipeline.Pipeline</code> — <code>PhaseContent</code>, <code>PipelinePhaseRelation</code> (<code>Before</code>/<code>After</code>/<code>Last</code>), <code>findPhase</code>, <code>cacheInterceptors</code>, <code>tryAddToPhaseFastpath</code>, <code>fastPathMerge</code>, <code>merge</code>. Only the header differs (Ktor’s Apache notice was replaced by the company’s). <code>core/common/PipelineContext.kt</code> ports <code>SuspendFunctionGun</code>, the delicate interceptor runner: it starts each interceptor as a coroutine, returns control if the interceptor suspends (for example while it waits for a database), and resumes the pipeline with the failure if the interceptor throws.</p>
+<p>There are three domain pipelines, and their phases are named for the domain, not for HTTP:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">ScrapeCollectPipeline</span> : <span class="type">Pipeline</span>&lt;<span class="type">ScrapeResponseData, ScrapeCollectCall</span>&gt;(</span><br><span class="line">    Before, Transform, Render, Valid, Collecting, Collected, After</span><br><span class="line">) &#123;</span><br><span class="line">    <span class="keyword">companion</span> <span class="keyword">object</span> &#123;</span><br><span class="line">        <span class="keyword">val</span> Before = PipelinePhase(<span class="string">&quot;Before&quot;</span>)   <span class="comment">// one such object per phase</span></span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>A <code>PipelinePhase</code> is a named slot that holds a list of interceptors, and the constructor takes the phases in the order the work should happen: check the request, transform it, render it, validate it, collect it, mark it collected, and clean up. The two type parameters are the response type and the call type the pipeline works with. There is also a request pipeline (<code>Before → Transform → After → Send</code>) and a connect pipeline (<code>Connect → Connected</code>).</p>
+<p>The port also drops two things: upstream’s <code>recoverStackTraceBridge</code> and <code>resumeWithException</code>, so exceptions crossing a pipeline phase lose stack-trace recovery.</p>
+<p>Each phase is filled by a different feature: the engine installs the request pipeline’s <code>Transform</code> (the fan-out over tasks × instances), the collector installs all seven collect phases, the connection manager installs the two connect phases. A plugin can only <em>add an interceptor to an existing phase</em>, keyed by task id — the <code>merge()</code> machinery that would let it insert a whole new phase exists in the ported code and is used by nothing except the ported test.</p>
+<h2 id="Two-pipelines-one-seam"><a href="#Two-pipelines-one-seam" class="headerlink" title="Two pipelines, one seam"></a>Two pipelines, one seam</h2><figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">┌─ HTTP ───────┐                   ┌──── core ────────────────────┐</span><br><span class="line">│  Ktor call   │  route handler    │  requestPipeline             │</span><br><span class="line">│  pipeline    │ ────────────────► │    Transform (fan-out)       │</span><br><span class="line">│  StatusPages │ ◄──────────────── │  collectPipeline             │</span><br><span class="line">│  ContentNeg  │      DTO          │    Before → Render →         │</span><br><span class="line">└──────────────┘                   │    Valid → Collecting        │</span><br><span class="line">                                   │  connectPipeline             │</span><br><span class="line">                                   └──────────────────────────────┘</span><br></pre></td></tr></table></figure>
+
+<p>The left box is Ktor’s own pipeline, the right box is the core’s three pipelines — <code>requestPipeline</code>, <code>collectPipeline</code> and <code>connectPipeline</code>, the last one running <code>Connect → Connected</code>. The arrow pointing right is the request travelling from the HTTP layer into the core; the arrow pointing left is the answer travelling back, as a DTO (a data-transfer object: a plain class whose fields become the JSON body). The lines of text inside the core box are the phases of each pipeline, in the order they run.</p>
+<p>The two pipelines never share a <code>PipelineContext</code> or an <code>Attributes</code> container. The seam is three ordinary function calls: route → <code>register.collect &#123; … &#125;</code> → <code>engine.requestTasks</code> → <code>requestPipeline.execute</code> → <code>collectPipeline.execute</code> → <code>connectPipeline.execute</code> → a <code>ScrapeResponse</code> → a DTO → <code>call.respond</code>.</p>
+<p>That separation is a feature: HTTP concerns stay in the app, collection concerns stay in the core, and neither drags the other along. The cost is that cross-cutting concerns get implemented twice, and Ktor’s metrics never see the domain work.</p>
+<h2 id="Where-the-blocking-work-leaks"><a href="#Where-the-blocking-work-leaks" class="headerlink" title="Where the blocking work leaks"></a>Where the blocking work leaks</h2><p>Ktor 1.3.0’s Netty engine runs each call on the channel’s event loop. The heavy JDBC and SSH work is therefore pushed onto dedicated pools — “Scrape” for collection, “Instance-Pool” for connections, “Monitor” for the scheduler, “Riemann” for shipping. The load-bearing line is one operator:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">register.requestPipeline.intercept(ScrapeRequestPipeline.Transform) &#123;</span><br><span class="line">    <span class="keyword">val</span> requestCall = context</span><br><span class="line">    withContext(createCallContext() + coroutineContext) &#123;   <span class="comment">// ← right side (Ktor ctx) wins</span></span><br><span class="line">        requestCall.debug(<span class="string">&quot;Transform task...&quot;</span>)</span><br><span class="line">        proceedWith(transformTask(register, requestCall))</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>intercept</code> adds an interceptor to a phase; <code>proceedWith</code> hands the result to the next interceptor. This is the body of the engine’s <code>install</code> function: it adds one interceptor to the <code>Transform</code> phase of the request pipeline. <code>withContext</code> runs its block on a different coroutine context — a context is the bundle of “which thread pool, which logger, which deadline” that a coroutine carries around. The <code>+</code> operator merges two contexts, and <code>CoroutineContext.plus</code> lets the <strong>right</strong> operand win, so the pipeline’s own context — which is the root continuation’s context, i.e. the Ktor call’s context, with the Netty dispatcher — overrides the engine’s pool.</p>
+<p>It works only because the blocking work sits inside <code>async &#123; &#125;</code> blocks that carry the engine’s dispatcher, and the event loop merely suspends on <code>awaitAll()</code>. Swap the two operands and the intent holds.</p>
+<p>Two routes block the event loop outright: <code>GET /instance/publicKey</code> runs <code>Runtime.getRuntime().exec(...).waitFor()</code>, and <code>POST /instance/test</code> calls <code>driver.createConnection(...).checkLive()</code> straight from the handler, bypassing the pipeline entirely.</p>
+<h2 id="Trade-offs"><a href="#Trade-offs" class="headerlink" title="Trade-offs"></a>Trade-offs</h2><p><strong>The duplicated pipeline is ~490 lines of forked infrastructure</strong> that has to be tracked across Kotlin and Ktor upgrades, and it re-implements semantics (<code>suspendCoroutineUninterceptedOrReturn</code>) that are easy to get subtly wrong. The Apache-2.0 notice on the original was replaced rather than preserved, which is the kind of detail that a company’s legal team notices and an engineer does not.</p>
+<p><strong>The catch-all 400 makes server faults look like client faults.</strong> Every unhandled exception — including a JVM out-of-memory in a collector — is a 400.</p>
+<p><strong><code>DropwizardMetrics</code> collects Ktor’s timers and then throws them away.</strong> The reporter is created with the wrong registry:</p>
+<figure class="highlight kotlin"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">fun</span> <span class="title">createReport</span><span class="params">(registry: <span class="type">MetricRegistry</span>)</span></span>: ScheduledReporter =</span><br><span class="line">    Slf4jReporter.forRegistry(metrics)   <span class="comment">// ← uses the field, ignores the parameter</span></span><br></pre></td></tr></table></figure>
+
+<p><code>registry</code> is the registry Ktor’s own timers go into, and <code>metrics</code> is the domain’s own registry; the reporter publishes the second one, so the <code>ktor.calls.*</code> metrics are recorded and never published. Only the domain’s registry is reported.</p>
+<p><strong>The strict Jackson mapper turns “field missing” into “request rejected”,</strong> which is a reasonable choice but couples the wire format to the Kotlin constructor signature: adding a field to a DTO with a default is safe, changing one without a default breaks every older client.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Decide once whether the core is framework-free, and pay for it honestly.</strong> The right answer here was “yes, framework-free” — but the cost should have been a <em>small</em> pipeline of my own with my own names, not a byte-for-byte port of Ktor’s class with a different header. A 60-line phase/interceptor implementation would have covered everything this project uses, and the phases could have been designed for the domain (<code>Render</code>, <code>Valid</code>) instead of reproducing Ktor’s internals.</p>
+<p><strong>Use the Ktor pipeline properly.</strong> <code>StatusPages</code> handles the domain exceptions; <code>ContentNegotiation</code> handles DTOs; the routes are thin. What is missing is <code>CallLogging</code> (there is an <code>application.log.info</code> inside the route instead), <code>RequestValidation</code> (the DTO constructor is the validation, which is why errors surface as 400s), and <code>Compression</code>.</p>
+<p><strong>Fix the dispatcher precedence and move the blocking routes off the event loop.</strong> <code>withContext</code> with the engine context on the <em>left</em> would express the intent correctly, and <code>GET /instance/publicKey</code> and <code>POST /instance/test</code> belong on a bounded pool.</p>
+<p><strong>Give the metrics a real registry.</strong> <code>createReport</code> should report the registry Ktor actually populates, or the whole <code>DropwizardMetrics</code> feature should go — a feature that silently discards its data is worse than no feature.</p>
+<p><strong>And delete the dead authentication.</strong> Either honour <code>AuthConfig.enabled</code> and make <code>skipWhen</code> conditional, or remove the <code>Authentication</code> installation. A half-installed auth provider is a comment that lies.</p>
+<p>The part I would keep exactly as it is: the layering. HTTP concerns in the app module, collection concerns in the core, and a core that compiles against an empty <code>dependencies &#123; &#125;</code> block. That constraint is what makes the collector embeddable, and it is worth more than the 490 lines it cost.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/ktorio/ktor">ktor</a> — the Kotlin framework whose pipeline this post is about</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/">Ktor documentation</a> — the entry point for everything below</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-plugins.html">Plugins</a> — how <code>install</code> assembles features into the pipeline</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-routing.html">Routing</a> — how the five route groups are declared</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-status-pages.html">Status pages</a> — how <code>exception&lt;T&gt;</code> handlers become responses</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-serialization.html">Serialization</a> — <code>ContentNegotiation</code> and the Jackson configuration</li>
+<li><a target="_blank" rel="noopener" href="https://ktor.io/docs/server-engines.html">Engines</a> — <code>embeddedServer(Netty, …)</code> and the group sizes</li>
+<li><a target="_blank" rel="noopener" href="https://kotlinlang.org/docs/coroutines-overview.html">Kotlin coroutines</a> — the suspension model the whole pipeline rests on</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-Ktor-for-the-HTTP-side"><span class="toc-number">2.</span> <span class="toc-text">Why Ktor for the HTTP side</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-plugin-stack"><span class="toc-number">3.</span> <span class="toc-text">The plugin stack</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#StatusPages-is-where-the-error-contract-lives"><span class="toc-number">3.1.</span> <span class="toc-text">StatusPages is where the error contract lives</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#ContentNegotiation-decides-what-a-missing-field-costs-you"><span class="toc-number">3.2.</span> <span class="toc-text">ContentNegotiation decides what a missing field costs you</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Authentication-is-installed-and-permanently-skipped"><span class="toc-number">3.3.</span> <span class="toc-text">Authentication is installed and permanently skipped</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#A-second-pipeline-in-the-core"><span class="toc-number">4.</span> <span class="toc-text">A second pipeline, in the core</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Two-pipelines-one-seam"><span class="toc-number">5.</span> <span class="toc-text">Two pipelines, one seam</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Where-the-blocking-work-leaks"><span class="toc-number">6.</span> <span class="toc-text">Where the blocking work leaks</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Trade-offs"><span class="toc-number">7.</span> <span class="toc-text">Trade-offs</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">8.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">9.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>

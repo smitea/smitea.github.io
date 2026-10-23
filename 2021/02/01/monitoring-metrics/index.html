@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang=en>
+<head>
+    <!-- so meta -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="HandheldFriendly" content="True">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+    <meta name="description" content="What a counter, a gauge and a health check each answer, why replication lag cannot be a sequence difference, and the nine bugs in my own metric scripts.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="How to Design Metrics That Answer Questions">
+<meta property="og:url" content="http://shawhuang.com/2021/02/01/monitoring-metrics/index.html">
+<meta property="og:site_name" content="Shaw">
+<meta property="og:description" content="What a counter, a gauge and a health check each answer, why replication lag cannot be a sequence difference, and the nine bugs in my own metric scripts.">
+<meta property="og:locale" content="en_US">
+<meta property="article:published_time" content="2021-02-01T12:20:00.000Z">
+<meta property="article:modified_time" content="2026-10-23T02:08:08.315Z">
+<meta property="article:author" content="Shaw">
+<meta property="article:tag" content="Tech">
+<meta name="twitter:card" content="summary">
+    
+    
+      
+        
+          <link rel="shortcut icon" href="/images/favicon.ico">
+        
+      
+      
+        
+          <link rel="icon" type="image/png" href="/images/favicon-192x192.png" sizes="192x192">
+        
+      
+      
+        
+          <link rel="apple-touch-icon" sizes="180x180" href="/images/favicon-192x192.png">
+        
+      
+    
+    <!-- title -->
+    <title>How to Design Metrics That Answer Questions</title>
+    <!-- styles -->
+    
+<link rel="stylesheet" href="/css/style.css">
+
+    <!-- persian styles -->
+    
+    <!-- rss -->
+    
+    
+	<!-- mathjax -->
+	
+<meta name="generator" content="Hexo 5.4.2"></head>
+
+<body class="max-width mx-auto px3 ltr">
+    
+      <div id="header-post">
+  <a id="menu-icon" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="menu-icon-tablet" href="#" aria-label="Menu"><i class="fas fa-bars fa-lg"></i></a>
+  <a id="top-icon-tablet" href="#" aria-label="Top" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');" style="display:none;"><i class="fas fa-chevron-up fa-lg"></i></a>
+  <span id="menu">
+    <span id="nav">
+      <ul>
+        <!--
+       --><li><a href="/">Home</a></li><!--
+     --><!--
+       --><li><a href="/archives/">Writing</a></li><!--
+     --><!--
+       --><li><a href="/about/">About</a></li><!--
+     -->
+      </ul>
+    </span>
+    <br/>
+    <span id="actions">
+      <ul>
+        
+        <li><a class="icon" aria-label="Previous post" href="/2021/02/12/collector-microservices/"><i class="fas fa-chevron-left" aria-hidden="true" onmouseover="$('#i-prev').toggle();" onmouseout="$('#i-prev').toggle();"></i></a></li>
+        
+        
+        <li><a class="icon" aria-label="Next post" href="/2020/09/18/plugin-system/"><i class="fas fa-chevron-right" aria-hidden="true" onmouseover="$('#i-next').toggle();" onmouseout="$('#i-next').toggle();"></i></a></li>
+        
+        <li><a class="icon" aria-label="Back to top" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up" aria-hidden="true" onmouseover="$('#i-top').toggle();" onmouseout="$('#i-top').toggle();"></i></a></li>
+      </ul>
+      <span id="i-prev" class="info" style="display:none;">Previous post</span>
+      <span id="i-next" class="info" style="display:none;">Next post</span>
+      <span id="i-top" class="info" style="display:none;">Back to top</span>
+    </span>
+    <br/>
+    <div id="toc">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-each-family-exists"><span class="toc-number">2.</span> <span class="toc-text">Why each family exists</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Health-the-cheapest-possible-question"><span class="toc-number">2.1.</span> <span class="toc-text">Health: the cheapest possible question</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Capacity-%E2%80%9Cwill-I-run-out-of-disk-%E2%80%9D"><span class="toc-number">2.2.</span> <span class="toc-text">Capacity: “will I run out of disk?”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Contention-who-is-blocking-whom"><span class="toc-number">2.3.</span> <span class="toc-text">Contention: who is blocking whom</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Replication-the-metric-that-looks-broken-but-is-not"><span class="toc-number">2.4.</span> <span class="toc-text">Replication: the metric that looks broken but is not</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Throughput-the-only-two-metrics-that-are-actually-rates"><span class="toc-number">2.5.</span> <span class="toc-text">Throughput: the only two metrics that are actually rates</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-a-sample-becomes-an-event"><span class="toc-number">3.</span> <span class="toc-text">How a sample becomes an event</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Three-ways-to-reach-the-target"><span class="toc-number">4.</span> <span class="toc-text">Three ways to reach the target</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-bugs-I-found-while-writing-this"><span class="toc-number">5.</span> <span class="toc-text">The bugs I found while writing this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+  </span>
+</div>
+
+    
+    <div class="content index py4">
+        
+        <article class="post" itemscope itemtype="http://schema.org/BlogPosting">
+  <header>
+    
+    <h1 class="posttitle" itemprop="name headline">
+        How to Design Metrics That Answer Questions
+    </h1>
+
+
+
+    <div class="meta">
+      <span class="author" itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Shaw</span>
+      </span>
+      
+    <div class="postdate">
+      
+        <time datetime="2021-02-01T12:20:00.000Z" itemprop="datePublished">2021-02-01</time>
+        
+      
+    </div>
+
+
+      
+
+      
+    <div class="article-tag">
+        <i class="fas fa-tag"></i>
+        <a class="tag-link-link" href="/tags/Tech/" rel="tag">Tech</a>
+    </div>
+
+
+    </div>
+  </header>
+  
+
+  <div class="content" itemprop="articleBody">
+    <p>The previous two posts were about the <em>collector</em> — a Kotlin engine and its Rust successor, both of which exist to move numbers around. This one is about the numbers themselves: the ninety-one task scripts that decide <strong>what gets measured</strong>, <strong>why a DBA would care</strong>, and <strong>what it costs to ask the database</strong>.</p>
+<p><strong>What this post is about.</strong> It is about the shapes a metric can have — a counter, a gauge, a health check — and the scripts that produce them: which question each family answers, what a sample looks like on its way to the database, and where my own scripts go wrong.</p>
+<p><strong>What you need to know first.</strong> A <em>metric</em> is one number about one system at one moment, with a name a human can look up later — <code>mysql_qps</code> means “how many queries per second is this MySQL server answering”. A <em>DBA</em> is a database administrator, the person whose phone rings when a database misbehaves. Riemann is the time-series database the metrics go to: it keeps each measurement as a timestamped event so you can graph it later.</p>
+<p>Because the scripts are real, this post contains real bugs — some of them mine.</p>
+<h2 id="The-situation"><a href="#The-situation" class="headerlink" title="The situation"></a>The situation</h2><p>A monitoring collector is usually specified as a list of metrics. That is the wrong starting point. A metric is only worth collecting if it answers a question somebody actually asks, and those questions cluster into a small number of shapes:</p>
+<table>
+<thead>
+<tr>
+<th>The question</th>
+<th>The metric shape</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Is it there at all?</td>
+<td>health check</td>
+<td><code>mysql_up</code>, <code>oracle_dg_up</code>, <code>mssql_database_status</code></td>
+</tr>
+<tr>
+<td>What is this thing?</td>
+<td>identity</td>
+<td><code>oracle_info</code>, <code>mysql_info</code>, <code>host_info</code></td>
+</tr>
+<tr>
+<td>Am I about to run out?</td>
+<td>capacity</td>
+<td><code>oracle_tablespace_bytes</code>, <code>mysql_capacity_bytes</code></td>
+</tr>
+<tr>
+<td>Am I about to be overloaded?</td>
+<td>saturation</td>
+<td><code>mysql_connections_used</code>, <code>mssql_block_count</code></td>
+</tr>
+<tr>
+<td>Who is hurting whom?</td>
+<td>contention</td>
+<td><code>oracle_long_lock</code>, <code>mysql_lock_trans</code>, <code>mssql_un_commit_sql</code></td>
+</tr>
+<tr>
+<td>How far behind am I?</td>
+<td>replication</td>
+<td><code>oracle_dg_delay_seconds</code>, <code>mssql_always_on_delay</code></td>
+</tr>
+<tr>
+<td>What is the system doing?</td>
+<td>throughput</td>
+<td><code>mysql_qps</code>, <code>mysql_tps</code>, <code>oracle_default_system_metrics</code></td>
+</tr>
+<tr>
+<td>Where did the time go?</td>
+<td>diagnosis</td>
+<td><code>oracle_awr_report</code>, <code>oracle_sql_monitor_report</code>, <code>oracle_alert_log</code></td>
+</tr>
+</tbody></table>
+<p>Almost every design decision falls out of this grouping. Health checks must be cheap and must never raise a false alarm. Capacity metrics are expensive (they stat every file) and are scheduled less often. Diagnosis metrics are so expensive that they run on demand, not on a timer.</p>
+<h2 id="Why-each-family-exists"><a href="#Why-each-family-exists" class="headerlink" title="Why each family exists"></a>Why each family exists</h2><h3 id="Health-the-cheapest-possible-question"><a href="#Health-the-cheapest-possible-question" class="headerlink" title="Health: the cheapest possible question"></a>Health: the cheapest possible question</h3><p>The liveness probe is the simplest thing in the system and the easiest to get wrong. The shared helper commits <code>metric = 0</code> on success and a <em>mapped error code</em> on failure:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">function</span> <span class="title">up_schema_task</span><span class="params">(schema, stat_callback)</span></span></span><br><span class="line">    <span class="keyword">local</span> err = handler_error();</span><br><span class="line">    <span class="keyword">if</span> err.code &gt; <span class="number">0</span> <span class="keyword">then</span></span><br><span class="line">        request:commit(&#123; metric = err.code, message = err.msg &#125;);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    <span class="keyword">end</span></span><br><span class="line">    request:commit(&#123; metric = <span class="number">0</span>, message = <span class="string">&quot;&quot;</span> &#125;);</span><br></pre></td></tr></table></figure>
+
+<p><code>scripts/lua/common.lua:185</code>. The function checks for a stored error first: if there is one, it commits the code and stops. Otherwise it runs the probe — the actual check, hidden in the middle of the original — and commits <code>metric = 0</code>. The error codes are classes, not measurements: 1 = SQL error, 2 = host unreachable, 3 = database unreachable, 5 = auth failed, 8 = timeout. So a health metric is <code>0</code> for healthy and a small integer for <em>how</em> it broke.</p>
+<p>The Oracle and PostgreSQL variants do not even run a <code>SELECT</code> — they <strong>write</strong>: <code>UPDATE BP_CHECK_UPDATE SET CHECK_TIME=SYSDATE</code> (SYSDATE is Oracle’s current-time function). A heartbeat row proves not just that the connection works but that the database accepts a write. The cost: the PostgreSQL variant fails if the table does not exist, manufacturing an alarm on a healthy server.</p>
+<h3 id="Capacity-“will-I-run-out-of-disk-”"><a href="#Capacity-“will-I-run-out-of-disk-”" class="headerlink" title="Capacity: “will I run out of disk?”"></a>Capacity: “will I run out of disk?”</h3><p>Capacity metrics answer a question that matters once a week and has consequences that matter once a month. They are also the most expensive kind: “how much disk is used” means walking a directory tree.</p>
+<p>The MySQL version takes the size of the data directory from the OS rather than from the database — the right instinct, since the database knows how big its <em>tables</em> are, not how much room is left on the filesystem. Inside a <code>match_schema(&quot;agent&quot;, ...)</code> block it calls <code>agent:diskus(dir, 10)</code>, which reports the directory size in KiB (units of 1024 bytes), then stores <code>row[&quot;size&quot;] * 1024</code> to get bytes.</p>
+<p>The Oracle tablespace version computes a real free-space figure and a headroom figure — but publishes only the headroom: <code>rs[&quot;free_bytes&quot;] = max_bytes - used_bytes</code> is headroom to MAXSIZE, not free space, alongside <code>rs[&quot;all_bytes&quot;]</code>. “Free space inside the datafile” and “room before the datafile hits its MAXSIZE” are different questions, and the metric publishes the second answer under the first one’s name.</p>
+<h3 id="Contention-who-is-blocking-whom"><a href="#Contention-who-is-blocking-whom" class="headerlink" title="Contention: who is blocking whom"></a>Contention: who is blocking whom</h3><p>Lock waits are the metric a DBA most wants during an incident, and the hardest to extract well. The Oracle version joins holder and waiter by matching <code>type/id1/id2</code> — the three columns that identify a lock resource. It has to: “there is a lock wait” is not an answer; “session 4711 is blocking session 4822 for 340 seconds on object 90123” is. The script commits the container name, the blocker and holder session counts, and the blocker age fields. Beneath, the <code>V$LOCK</code> self-join pairs every holder row with every waiter row and filters by resource identity — the classic way to find the blocking pair, and why it costs so much.</p>
+<p>The long-transaction metric is the sibling: not “who is blocked” but “who is holding undo” — the before-image data Oracle keeps so other sessions can read a consistent picture while a transaction runs. The expensive part is the outer join onto <code>V$SQL</code> to attach the offending statement, written <code>S.SQL_ID_new = Q.SQL_ID(+)</code>; the query carries a hint because that join must not be re-optimised, and filters with <code>T.START_DATE &lt; SYSDATE - 10</code>.</p>
+<p>The MSSQL equivalent asks a different question — “who is idle <em>in a transaction</em>“, the session that will block everyone later. It keeps sessions with a transaction (a row in <code>dm_tran_session_transactions</code>) but no current request (none in <code>dm_exec_requests</code>).</p>
+<h3 id="Replication-the-metric-that-looks-broken-but-is-not"><a href="#Replication-the-metric-that-looks-broken-but-is-not" class="headerlink" title="Replication: the metric that looks broken but is not"></a>Replication: the metric that looks broken but is not</h3><p>Replication lag — how far behind a standby copy is — is the most instructive metric in the set, because the obvious implementation is wrong in a way that only shows up under load. In Oracle Data Guard the <em>primary</em> takes the writes; the <em>standby</em> keeps a copy by replaying the redo log, the change records the primary ships to it.</p>
+<p>The obvious implementation is a difference of two numbers: the last log the standby has <em>received</em> minus the last it has <em>applied</em>. The collector ships exactly those two numbers, split by process type:</p>
+<figure class="highlight perl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">SELECT THREAD<span class="comment">#,MAX(CASE WHEN PROCESS LIKE &#x27;MR%&#x27; THEN SEQUENCE# ELSE 0 END) RECOVER_SEQ,</span></span><br><span class="line">       MAX(CASE WHEN PROCESS LIKE <span class="string">&#x27;MR%&#x27;</span> THEN <span class="number">0</span> ELSE SEQUENCE<span class="comment"># END) LOG_SEQ</span></span><br><span class="line">FROM GV$MANAGED_STANDBY WHERE THREAD<span class="comment"># &gt; 0 GROUP BY THREAD#;</span></span><br></pre></td></tr></table></figure>
+
+<p><code>scripts/perl/BP_CK_DGLogSeq.pl:50</code>. <code>CASE WHEN</code> is SQL’s per-row if, wrapped in <code>MAX</code> to take the highest sequence number per thread. <code>MR%</code> is media recovery — the apply process, the MRP. Everything else is the receiver.</p>
+<p>Why is the gap a bad metric? Standby apply is serial and redo-consistent. A long transaction on the primary holds a row lock, so the standby’s MRP must apply that same transaction and blocks on the same lock. MRP stays pinned at one sequence number while the receiver keeps shipping newer logs, and the gap grows — and yet <strong>nothing is wrong</strong>: transport, standby and primary are healthy. The standby is waiting for a transaction that cannot commit.</p>
+<p>A missing archive log produces the same symptom: MRP waits for a log that will never arrive. So the gap conflates “not applied yet” (lock wait, slow apply) with “not received yet” (network, archive). And it counts <em>logs</em>, not seconds, so turning it into a duration needs the log switch interval — which swings with workload.</p>
+<p>That is why the collector also ships the authoritative version, in seconds, from <code>V$DATAGUARD_STATS</code>:</p>
+<figure class="highlight perl"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">SELECT <span class="string">&#x27;DGLAGDATA&#x27;</span>||D.DB_UNIQUE_NAME|| <span class="string">&#x27;|&#x27;</span> || G.NAME</span><br><span class="line">       || <span class="string">&#x27;|&#x27;</span> || NVL( (TO_NUMBER(SUBSTR(G.VALUE, <span class="number">2</span>, instr(G.VALUE, <span class="string">&#x27; &#x27;</span>)-<span class="number">1</span>)) * <span class="number">86400</span> + ... )</span><br><span class="line">       , NVL((CASE WHEN G.NAME = <span class="string">&#x27;transport lag&#x27;</span> THEN M.MAX_ARCHIVED ELSE M.MAX_APPLIED END), <span class="number">0</span>)</span><br><span class="line">       )</span><br><span class="line">       || <span class="string">&#x27;|&#x27;</span> || TRUNC(SYSDATE - TO_DATE(DATUM_TIME,<span class="string">&#x27;MM/DD/YYYY hh24-mi-ss&#x27;</span>))*<span class="number">24</span>*<span class="number">60</span>*<span class="number">60</span></span><br></pre></td></tr></table></figure>
+
+<p><code>scripts/perl/BP_CK_DGLag.pl:84</code>. <code>NVL</code> is Oracle’s “use this fallback if null”; the <code>86400</code> and the <code>24*60*60</code> both convert days to seconds. The third field is the age of the statistic itself — a staleness flag, because <code>V$DATAGUARD_STATS</code> goes stale if the DMON process dies, and a stale zero is worse than no number.</p>
+<p>The two are kept separate on purpose, in the Lua layer: the parser matches <code>DGLAG_INFO:</code> lines, splits them on <code>|</code>, takes the larger parsed value with <code>math.max</code>, and stores <code>transport lag</code> and <code>apply lag</code> under separate names. Different failure modes, different remedies; they must never be collapsed into one number.</p>
+<p>MySQL adds a third layer of the same lesson: <code>Seconds_Behind_Master</code> reads <strong>0</strong> while the SQL thread is stuck on a long transaction, and is NULL until the first event replicates. So it ships alongside a health check, <code>mysql_slave_clone_interrupt</code>, that reports whether the replication threads are actually running. The lag metric alone would have said “perfectly caught up” while the replica was minutes behind.</p>
+<h3 id="Throughput-the-only-two-metrics-that-are-actually-rates"><a href="#Throughput-the-only-two-metrics-that-are-actually-rates" class="headerlink" title="Throughput: the only two metrics that are actually rates"></a>Throughput: the only two metrics that are actually rates</h3><p>Almost every number a database hands you is a <strong>monotonically increasing counter</strong> — a total that only counts up from the last statistics reset and never comes down. <code>V$SYSSTAT</code>, <code>pg_stat_database</code>, <code>SHOW GLOBAL STATUS</code> and the base counters in <code>dm_os_performance_counters</code> all work that way. Plot one raw and you get a ramp that looks like “traffic is growing”, on a completely idle server.</p>
+<p>Only two metrics in the whole set are differenced, and they do it themselves:</p>
+<figure class="highlight lua"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">local</span> prev_qps_time = get_cache(<span class="string">&quot;qps_time&quot;</span>);</span><br><span class="line"><span class="keyword">local</span> prev_qps_queries = get_cache(<span class="string">&quot;qps_queries&quot;</span>);</span><br><span class="line">...</span><br><span class="line"><span class="keyword">if</span> prev_qps_time ~= <span class="literal">nil</span> <span class="keyword">and</span> prev_qps_queries ~= <span class="literal">nil</span> <span class="keyword">then</span></span><br><span class="line">    request:commit(&#123;</span><br><span class="line">        metric = (qps_queries - prev_qps_queries) / ((qps_time - prev_qps_time) / <span class="number">1000.00</span>)</span><br><span class="line">    &#125;);</span><br><span class="line"><span class="keyword">end</span></span><br></pre></td></tr></table></figure>
+
+<p><code>scripts/task/mysql_qps.lua:6</code>. The previous sample comes from a cache — a store persisted to disk, scoped by <code>instance.id .. &quot;_&quot; .. instance.schema .. &quot;_&quot; .. key</code>. If it exists, the script commits the counter difference divided by elapsed seconds; <code>1000.00</code> converts milliseconds to seconds. The rest of the original stores the current values back into the cache.</p>
+<p>Two consequences, both visible in production. First, <strong>the first sample after a restart emits nothing</strong> — there is no previous value, so there is no rate, and the series has a hole right where you are most likely to be looking. Second, <strong>the window is whatever elapsed since the last successful run</strong>: if the collector was down for an hour, “queries per second” is the average over that hour, not over the nominal 60-second interval.</p>
+<h2 id="How-a-sample-becomes-an-event"><a href="#How-a-sample-becomes-an-event" class="headerlink" title="How a sample becomes an event"></a>How a sample becomes an event</h2><p>A task script opens a schema, runs a query such as <code>mysql:query(&quot;SHOW GLOBAL STATUS like &#39;Queries&#39;&quot;, 10)</code>, and commits rows with <code>request:commit</code>. The <strong>first</strong> commit is where the metric acquires its shape: it defines the columns and their types, and every later row is aligned to them. The Rust implementation builds that column list on first commit, sends it downstream once, then streams rows.</p>
+<p>Then the rows become Riemann events, and this is where the convention bites:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// monitoring metric value handling</span></span><br><span class="line"><span class="keyword">let</span> <span class="variable">metric</span> = get_value!(context.columns, <span class="keyword">self</span>, <span class="string">&quot;metric&quot;</span>).<span class="title function_ invoke__">unwrap_or</span>(Value::<span class="title function_ invoke__">Number</span>(<span class="number">0.0_f64</span>));</span><br><span class="line"><span class="title function_ invoke__">for</span> (i, (name, _)) <span class="keyword">in</span> context.columns.<span class="title function_ invoke__">iter</span>().<span class="title function_ invoke__">enumerate</span>() &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">value</span> = <span class="keyword">self</span>.<span class="title function_ invoke__">get_value</span>(i)?;</span><br><span class="line">    <span class="comment">// exclude the metric field (so Riemann&#x27;s default fields are not replaced)</span></span><br><span class="line">    <span class="keyword">if</span> name != <span class="string">&quot;metric&quot;</span> &#123; context.event.<span class="title function_ invoke__">attributes</span>(name, value.<span class="title function_ invoke__">clone</span>()); &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p><code>bee/src/features/riemann/send.rs:272</code> (comments translated from the Chinese original). The first line reads the column named <code>metric</code>, falling back to <code>0.0</code>; the loop copies every other column into the event’s attributes. <strong>Only a column literally named <code>metric</code> becomes the Riemann metric number.</strong> Every other number travels as a <em>string attribute</em>. So <code>oracle_tablespace_bytes</code> publishes <code>free_bytes</code> and <code>all_bytes</code> as attributes with the metric field left at <code>0.0</code>, and a dashboard must key its series on <code>service</code> + attribute name, not the metric field.</p>
+<p>The event’s <code>service</code> is the task id — the file stem: <code>host_memory_bytes</code>, <code>oracle_dg_delay_seconds</code>, <code>mysql_qps</code>. The suffix is a unit contract: <code>_bytes</code> for a size, <code>_seconds</code> for a duration, <code>_up</code> for a health check, <code>_info</code> for labels rather than measurements.</p>
+<p>There is a third outcome besides a value and an error. If the script produced no rows, the collector still sends an event with <code>state = &quot;blank&quot;</code> — “I ran and there was nothing” is information, and it is how a monitoring system tells “no data” from “not running”. If the script <em>errored</em>, nothing is sent at all: <code>request:error(...)</code> puts an error state in the stream and discards the already-committed rows. No partial metric, no blank event — a half-collected metric is worse than none.</p>
+<h2 id="Three-ways-to-reach-the-target"><a href="#Three-ways-to-reach-the-target" class="headerlink" title="Three ways to reach the target"></a>Three ways to reach the target</h2><p>The transport is chosen per metric, and the choice changes the cost profile.</p>
+<ul>
+<li><strong>JDBC</strong> — Oracle, MySQL, PostgreSQL/PolarDB and MSSQL; the second argument to <code>query()</code> is the JDBC query timeout in seconds.</li>
+<li><strong>Perl + <code>sqlplus</code> over SSH</strong> — Data Guard, archive usage, partition checks, CRS state, patch inventory and the OS facts go through a Perl helper on the target host that returns pipe-delimited text (fields separated by <code>|</code>). The Oracle standby is never queried over JDBC at all: it has no listener.</li>
+<li><strong>The native agent</strong> — a small Rust binary on the monitored host, speaking the same wire protocol. It replaces SSH + Perl + <code>df</code>/<code>free</code>/<code>vmstat</code> parsing with direct sysinfo calls, which makes the host metrics cheap enough to collect often.</li>
+</ul>
+<p>The agent is why the host metrics look the way they do. It cannot parse <code>free -m</code> — that output is localised and column-order-dependent — so it calls <code>heim</code> for memory and CPU, and <code>diskus</code> for directory sizes:</p>
+<figure class="highlight rust"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">pub</span> <span class="keyword">async</span> <span class="keyword">fn</span> <span class="title function_">cpu_usage</span>(delay_time: <span class="type">u32</span>, promise: &amp;<span class="keyword">mut</span> Promise&lt;<span class="symbol">&#x27;_</span>, CPUUsage&gt;) <span class="punctuation">-&gt;</span> <span class="type">Result</span>&lt;()&gt; &#123;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">time1</span> = heim::cpu::<span class="title function_ invoke__">time</span>().<span class="keyword">await</span>?;</span><br><span class="line">    tokio::time::<span class="title function_ invoke__">sleep</span>(Duration::<span class="title function_ invoke__">from_millis</span>(delay_time <span class="keyword">as</span> <span class="type">u64</span>)).<span class="keyword">await</span>;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">time2</span> = heim::cpu::<span class="title function_ invoke__">time</span>().<span class="keyword">await</span>?;</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">total</span> = <span class="title function_ invoke__">get_total_time</span>(&amp;time1);</span><br><span class="line">    ...</span><br><span class="line">    <span class="keyword">let</span> <span class="variable">total_time</span> = <span class="title function_ invoke__">get_total_time</span>(&amp;time2) - total;</span><br></pre></td></tr></table></figure>
+
+<p><code>schemas/agent/src/agent/cpu_usage.rs:16</code>. The agent measures CPU the honest way: two samples of the CPU clocks, one sleep apart, differenced. The hidden lines pick the system, user and idle slices out of each sample; <code>total_time</code> is the change in total CPU time between them.</p>
+<h2 id="The-bugs-I-found-while-writing-this"><a href="#The-bugs-I-found-while-writing-this" class="headerlink" title="The bugs I found while writing this"></a>The bugs I found while writing this</h2><p>These are my scripts, so it is only fair to list what is wrong with them.</p>
+<p><strong><code>oracle_io_wait_milliseconds</code> is off by a factor of ten thousand.</strong> <code>V$EVENTMETRIC.TIME_WAITED</code> is in microseconds, but the expression applies the classic centisecond-to-millisecond conversion, <code>ROUND(10 * TIME_WAITED / DECODE(WAIT_COUNT,0,1,WAIT_COUNT))</code>. For <code>V$SYSTEM_EVENT</code>, where <code>TIME_WAITED</code> really is centiseconds, <code>×10</code> gives milliseconds; for <code>V$EVENTMETRIC</code>, in microseconds, <code>×10</code> gives ten-thousandths of a millisecond. The name says milliseconds; the number is not.</p>
+<p><strong>It is also a lifetime average.</strong> <code>TIME_WAITED ÷ WAIT_COUNT</code> is cumulative divided by cumulative, so it only moves when statistics are reset. It answers “the average wait since the last stats reset”, not the question anybody asks during an incident.</p>
+<p><strong>One metric family ships three different units.</strong> In the Oracle system-metrics decoder, <code>DB CPU</code> and <code>parse time elapsed</code> are divided by 10⁶ (seconds), <code>redo size</code> and <code>physical read bytes</code> by 1024 (KiB), and a synthesised <code>cluster traffic</code> figure is produced in bytes. A consumer assuming one unit per family is wrong three times over.</p>
+<p><strong><code>mysql_files_bytes</code> converts twice.</strong> The agent path stores <code>row[&quot;size&quot;] * 1024</code> (KiB → bytes) and the commit path multiplies by 1024 again, so the agent-reported value is 1024× too large. The SSH path, storing raw KiB, is correct.</p>
+<p><strong><code>mysql_capacity_bytes</code> returns <code>nil</code> on the host path.</strong> The helper takes the span from <code>&quot;bytes&quot;</code> back to <code>&quot;(&quot;</code>, but the <code>diskus</code> output is <code>420.51 MB (420,507,648 bytes)</code>, so the start index is greater than the end index, Lua returns an empty string, and <code>tonumber(&quot;&quot;)</code> is <code>nil</code>. The mock’s assertions omit the field for this metric while asserting it for the PostgreSQL equivalent, which is how I found it.</p>
+<p><strong>The MSSQL <code>*_delay</code> metrics are not delays.</strong> <code>mssql_always_on_delay</code> and <code>mssql_mirror_delay</code> publish <code>log_send_queue_size</code> and <code>redo_queue_size</code> — <strong>bytes of queued log</strong>. A queue size is also the wrong shape for “how far behind am I”: a slow-but-steady consumer shows a small queue, a stalled one a growing queue, and seconds is what an SLA — a service-level agreement, the promised bound on delay — is written in.</p>
+<p><strong><code>mssql_database_size_bytes</code> reports one file.</strong> The per-database query selects <code>FILEPROPERTY(name,&#39;SpaceUsed&#39;)</code> per row, but the Lua commits only the first row and the filter excludes the log file. The published “database size” is the size of one data file.</p>
+<p><strong><code>mysql_connections_used</code> divides by <code>max_connections</code> without guarding zero</strong>, and uses <code>Threads_connected</code> where <code>Threads_running</code> is the saturation signal.</p>
+<p><strong>The host path and the agent path disagree about “total”.</strong> On the SSH path <code>all_bytes = Used + Available</code>, which excludes blocks reserved by the filesystem and under-reports the real size. The agent path returns the true <code>statvfs</code> total (the OS call that reports filesystem totals). Same name, two meanings.</p>
+<p><strong>Windows IOPS is pinned near 100%.</strong> <code>busy_time = 1.00 - (idle_time / used_time) / 100.00</code> — the stray division makes the value ≈1.0 regardless of load.</p>
+<p><strong>No query has a row limit.</strong> The JDBC layer never calls <code>setMaxRows</code>, so <code>information_schema.TABLES</code>, <code>pg_stat_database</code> and the AWR result sets (AWR is Oracle’s bundled performance report) are fully materialised in the collector’s memory.</p>
+<h2 id="What-I-would-do-differently"><a href="#What-I-would-do-differently" class="headerlink" title="What I would do differently"></a>What I would do differently</h2><p><strong>Move the differencing into the collector.</strong> The rate logic is duplicated in two Lua scripts, depends on a disk cache that silently drops the first sample, and has an unbounded window. A metric descriptor — <code>type = counter</code>, <code>unit = queries/second</code>, <code>window = 60s</code> — would let the collector difference every counter correctly, clamp the window, and emit a zero-with-a-flag instead of a hole.</p>
+<p><strong>Give every metric an explicit unit and an explicit kind.</strong> The suffix convention is good but only convention. <code>mssql_always_on_delay</code> should be <code>mssql_always_on_queue_bytes</code> and <code>oracle_io_wait_milliseconds</code> should be <code>oracle_io_wait_avg_microseconds</code>, because the current names mislead.</p>
+<p><strong>Make the health check a read.</strong> The heartbeat write buys “the database accepts writes” — a real property, but a different metric from “the database answers”. It should be its own task with its own name, not a side effect of the liveness probe.</p>
+<p><strong>Fix the free-versus-headroom distinction.</strong> Publish both <code>free_bytes</code> and <code>headroom_bytes</code> for tablespaces. They answer different questions, and only one is what the alert threshold is written against.</p>
+<p><strong>And put a <code>LIMIT</code> on everything.</strong> The most dangerous queries scan a data dictionary or a directory tree — exactly what a monitoring system runs on someone else’s production database at 3 a.m. A collector that can saturate the thing it monitors has failed at its one job.</p>
+<h2 id="References"><a href="#References" class="headerlink" title="References"></a>References</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://github.com/riemann/riemann">Riemann</a> — the event server the collector ships metrics to</li>
+<li><a target="_blank" rel="noopener" href="https://github.com/riemann/riemann/blob/master/README.md">Riemann README</a> — events, services and states as described upstream</li>
+<li><a target="_blank" rel="noopener" href="https://dev.mysql.com/doc/refman/8.0/en/show-status.html">MySQL SHOW STATUS</a> — the monotonic counters behind <code>mysql_qps</code></li>
+<li><a target="_blank" rel="noopener" href="https://www.postgresql.org/docs/current/monitoring-stats.html">PostgreSQL statistics collector</a> — the <code>pg_stat_*</code> views</li>
+<li><a target="_blank" rel="noopener" href="https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-dm-os-performance-counters-transact-sql-view">sys.dm_os_performance_counters</a> — SQL Server’s raw counter table</li>
+<li><a target="_blank" rel="noopener" href="https://docs.oracle.com/en/database/oracle/oracle-database/19/refrn/">Oracle Database Reference 19c</a> — Oracle’s <code>V$</code> views</li>
+<li><a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man8/vmstat.8.html">vmstat manual</a> — a host tool the native agent replaced</li>
+<li><a target="_blank" rel="noopener" href="https://man7.org/linux/man-pages/man1/df.1.html">df manual</a> — the disk-usage tool the SSH path parsed</li>
+</ul>
+
+  </div>
+</article>
+
+
+
+        
+          <div id="footer-post-container">
+  <div id="footer-post">
+
+    <div id="nav-footer" style="display: none">
+      <ul>
+         
+          <li><a href="/">Home</a></li>
+         
+          <li><a href="/archives/">Writing</a></li>
+         
+          <li><a href="/about/">About</a></li>
+        
+      </ul>
+    </div>
+
+    <div id="toc-footer" style="display: none">
+      <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#The-situation"><span class="toc-number">1.</span> <span class="toc-text">The situation</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Why-each-family-exists"><span class="toc-number">2.</span> <span class="toc-text">Why each family exists</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Health-the-cheapest-possible-question"><span class="toc-number">2.1.</span> <span class="toc-text">Health: the cheapest possible question</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Capacity-%E2%80%9Cwill-I-run-out-of-disk-%E2%80%9D"><span class="toc-number">2.2.</span> <span class="toc-text">Capacity: “will I run out of disk?”</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Contention-who-is-blocking-whom"><span class="toc-number">2.3.</span> <span class="toc-text">Contention: who is blocking whom</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Replication-the-metric-that-looks-broken-but-is-not"><span class="toc-number">2.4.</span> <span class="toc-text">Replication: the metric that looks broken but is not</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Throughput-the-only-two-metrics-that-are-actually-rates"><span class="toc-number">2.5.</span> <span class="toc-text">Throughput: the only two metrics that are actually rates</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#How-a-sample-becomes-an-event"><span class="toc-number">3.</span> <span class="toc-text">How a sample becomes an event</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Three-ways-to-reach-the-target"><span class="toc-number">4.</span> <span class="toc-text">Three ways to reach the target</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#The-bugs-I-found-while-writing-this"><span class="toc-number">5.</span> <span class="toc-text">The bugs I found while writing this</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#What-I-would-do-differently"><span class="toc-number">6.</span> <span class="toc-text">What I would do differently</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#References"><span class="toc-number">7.</span> <span class="toc-text">References</span></a></li></ol>
+    </div>
+
+    <div id="actions-footer">
+        <a id="menu" class="icon" href="#" onclick="$('#nav-footer').toggle();return false;"><i class="fas fa-bars fa-lg" aria-hidden="true"></i> Menu</a>
+        <a id="top" style="display:none" class="icon" href="#" onclick="$('html, body').animate({ scrollTop: 0 }, 'fast');"><i class="fas fa-chevron-up fa-lg" aria-hidden="true"></i> Top</a>
+    </div>
+
+  </div>
+</div>
+
+        
+        <footer id="footer">
+  <div class="footer-left">
+    Copyright &copy;
+    
+    
+    2016-2030
+    Shaw
+  </div>
+</footer>
+
+    </div>
+    <!-- styles -->
+
+
+
+  <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.2/css/all.min.css" crossorigin="anonymous" onload="this.onload=null;this.rel='stylesheet'"/>
+
+
+    <!-- jquery -->
+ 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" crossorigin="anonymous"></script> 
+
+
+
+
+<!-- clipboard -->
+
+  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.7/clipboard.min.js" crossorigin="anonymous"></script> 
+  
+  <script type="text/javascript">
+  $(function() {
+    // copy-btn HTML
+    var btn = "<span class=\"btn-copy tooltipped tooltipped-sw\" aria-label=\"Copy to clipboard!\">";
+    btn += '<i class="far fa-clone"></i>';
+    btn += '</span>'; 
+    // mount it!
+    $(".highlight table").before(btn);
+    var clip = new ClipboardJS('.btn-copy', {
+      text: function(trigger) {
+        return Array.from(trigger.nextElementSibling.querySelectorAll('.code')).reduce((str,it)=>str+it.innerText+'\n','')
+      }
+    });
+    clip.on('success', function(e) {
+      e.trigger.setAttribute('aria-label', "Copied!");
+      e.clearSelection();
+    })
+  })
+  </script>
+
+
+<script src="/js/main.js"></script>
+
+<!-- search -->
+
+<!-- Google Analytics -->
+
+<!-- Baidu Analytics -->
+
+<!-- Cloudflare Analytics -->
+
+<!-- Umami Analytics -->
+
+<!-- Disqus Comments -->
+
+<!-- utterances Comments -->
+
+</body>
+</html>
